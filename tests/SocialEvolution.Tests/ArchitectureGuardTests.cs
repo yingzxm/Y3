@@ -39,6 +39,7 @@ namespace SocialEvolution.Tests
             Assert.True(NoEngine("Core"));
             Assert.True(NoEngine("Domain"));
             Assert.True(NoEngine("World"));
+            Assert.True(NoEngine("Labor"));
             Assert.False(NoEngine("Bootstrap"));
 
             Assert.Empty(References("Domain"));
@@ -47,6 +48,9 @@ namespace SocialEvolution.Tests
             Assert.Equal(
                 new[] { "SocialEvolution.Core", "SocialEvolution.Domain", "SocialEvolution.World" },
                 References("Bootstrap"));
+            Assert.Equal(
+                new[] { "SocialEvolution.Core", "SocialEvolution.Domain", "SocialEvolution.World" },
+                References("Labor"));
         }
 
         [Fact]
@@ -56,6 +60,8 @@ namespace SocialEvolution.Tests
             AssertNoEngine(Path.Combine(root, "Assets", "Scripts", "Core"));
             AssertNoEngine(Path.Combine(root, "Assets", "Scripts", "Domain"));
             AssertNoEngine(Path.Combine(root, "Assets", "Scripts", "World"));
+            AssertNoEngine(Path.Combine(root, "Assets", "Scripts", "Labor"));
+            AssertNoEngineIfPresent(Path.Combine(root, "Assets", "Scripts", "Agents"));
             AssertNoEngineFile(Path.Combine(root, "Assets", "Scripts", "Bootstrap", "OpeningSeed.cs"));
             AssertNoEngineFile(Path.Combine(root, "Assets", "Scripts", "Bootstrap", "GameSession.cs"));
 
@@ -80,6 +86,7 @@ namespace SocialEvolution.Tests
                     Assert.DoesNotContain("Enterprise", type.Name, StringComparison.OrdinalIgnoreCase);
                     Assert.DoesNotContain("PrivateFirm", type.Name, StringComparison.OrdinalIgnoreCase);
                     Assert.DoesNotContain("Recruitment", type.Name, StringComparison.OrdinalIgnoreCase);
+                    Assert.DoesNotContain("Assign", type.Name, StringComparison.OrdinalIgnoreCase);
 
                     const BindingFlags flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly;
                     foreach (MethodInfo method in type.GetMethods(flags))
@@ -96,8 +103,11 @@ namespace SocialEvolution.Tests
 
             AssertNoEmploymentStorage(typeof(JobPosting));
             AssertNoEmploymentStorage(typeof(Building));
+            AssertNoEmploymentStorage(typeof(SocialEvolution.Labor.JobPosting));
             Assert.Null(typeof(JobPosting).GetProperty("VacantSlots"));
             Assert.Null(typeof(JobPosting).GetProperty("FilledCount"));
+            Assert.Null(typeof(SocialEvolution.Labor.JobPosting).GetProperty("VacantSlots"));
+            Assert.Null(typeof(SocialEvolution.Labor.JobPosting).GetProperty("FilledCount"));
 
             MethodInfo? setPosting = typeof(Building).GetMethod(
                 "SetJobPosting",
@@ -109,11 +119,14 @@ namespace SocialEvolution.Tests
 
         private static void AssertNoAssignment(Type type, string name, ParameterInfo[] parameters)
         {
-            bool assignsCitizen = name.Contains("AssignCitizen", StringComparison.OrdinalIgnoreCase)
-                || (name.Contains("Assign", StringComparison.OrdinalIgnoreCase)
-                    && (name.Contains("Citizen", StringComparison.OrdinalIgnoreCase) || name.Contains("Job", StringComparison.OrdinalIgnoreCase)))
-                || name.Contains("HireCitizen", StringComparison.OrdinalIgnoreCase)
-                || name.Contains("ForceEmploy", StringComparison.OrdinalIgnoreCase);
+            if (name.IndexOf('<') >= 0)
+            {
+                return;
+            }
+
+            bool assignsCitizen = name.IndexOf("Assign", StringComparison.OrdinalIgnoreCase) >= 0
+                || name.IndexOf("HireCitizen", StringComparison.OrdinalIgnoreCase) >= 0
+                || name.IndexOf("ForceEmploy", StringComparison.OrdinalIgnoreCase) >= 0;
             if (assignsCitizen)
             {
                 throw new Xunit.Sdk.XunitException($"{type.FullName}.{name} looks like a direct assignment API.");
@@ -143,9 +156,34 @@ namespace SocialEvolution.Tests
             }
         }
 
-        private static bool IsCitizen(Type type) => type == typeof(Citizen) || type == typeof(CitizenId);
+        private static bool IsCitizen(Type type)
+        {
+            type = Unwrap(type);
+            return type == typeof(Citizen) || type == typeof(CitizenId);
+        }
 
-        private static bool IsJob(Type type) => type == typeof(JobPosting) || type == typeof(JobPostingId);
+        private static bool IsJob(Type type)
+        {
+            type = Unwrap(type);
+            return type == typeof(JobPosting)
+                || type == typeof(JobPostingId)
+                || type == typeof(SocialEvolution.Labor.JobPosting);
+        }
+
+        private static Type Unwrap(Type type)
+        {
+            if (type.IsByRef)
+            {
+                Type? element = type.GetElementType();
+                if (element != null)
+                {
+                    type = element;
+                }
+            }
+
+            Type? underlying = Nullable.GetUnderlyingType(type);
+            return underlying ?? type;
+        }
 
         private static bool ContainsCitizen(Type? type)
         {
@@ -189,6 +227,7 @@ namespace SocialEvolution.Tests
                 typeof(Citizen).Assembly,
                 typeof(WorldState).Assembly,
                 typeof(SocialEvolution.Bootstrap.GameSession).Assembly,
+                typeof(SocialEvolution.Labor.LaborMarket).Assembly,
             };
         }
 
@@ -200,12 +239,22 @@ namespace SocialEvolution.Tests
             }
         }
 
+        private static void AssertNoEngineIfPresent(string directory)
+        {
+            if (Directory.Exists(directory))
+            {
+                AssertNoEngine(directory);
+            }
+        }
+
         private static void AssertNoEngineFile(string file)
         {
             string text = File.ReadAllText(file);
             Assert.DoesNotContain("UnityEngine", text, StringComparison.Ordinal);
             Assert.DoesNotContain("MonoBehaviour", text, StringComparison.Ordinal);
             Assert.DoesNotContain("AssignCitizenToJob", text, StringComparison.Ordinal);
+            Assert.DoesNotContain("AssignPersonToJob", text, StringComparison.Ordinal);
+            Assert.DoesNotContain("AssignCitizen", text, StringComparison.Ordinal);
         }
 
         private static bool NoEngine(string layer)
