@@ -40,6 +40,7 @@ namespace SocialEvolution.Tests
             Assert.True(NoEngine("Domain"));
             Assert.True(NoEngine("World"));
             Assert.True(NoEngine("Labor"));
+            Assert.True(NoEngine("Agents"));
             Assert.False(NoEngine("Bootstrap"));
 
             Assert.Empty(References("Domain"));
@@ -51,6 +52,9 @@ namespace SocialEvolution.Tests
             Assert.Equal(
                 new[] { "SocialEvolution.Core", "SocialEvolution.Domain", "SocialEvolution.World" },
                 References("Labor"));
+            Assert.Equal(
+                new[] { "SocialEvolution.Core", "SocialEvolution.Domain", "SocialEvolution.Labor" },
+                References("Agents"));
         }
 
         [Fact]
@@ -228,6 +232,7 @@ namespace SocialEvolution.Tests
                 typeof(WorldState).Assembly,
                 typeof(SocialEvolution.Bootstrap.GameSession).Assembly,
                 typeof(SocialEvolution.Labor.LaborMarket).Assembly,
+                typeof(SocialEvolution.Agents.AgentBrain).Assembly,
             };
         }
 

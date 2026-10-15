@@ -2,7 +2,7 @@
 
 Unity 6.3 LTS，团队统一使用 **6000.3.26f1**（changeset `de8167e7440c`）。请用 Unity Hub 安装这一 patch，不要换别的 6000.3 版本。版本锁在 `ProjectSettings/ProjectVersion.txt`。
 
-这是 P0-1～P0-3：能推进时钟，有开局种子，建筑能入出库。没有招聘撮合、市场结算、发薪、生产，也没有数值 Utility 的决策循环。
+P0-1～P0-3 能推进时钟、给出开局种子、让建筑入出库。P0-4 在 Labor 里做自愿应聘和真实空缺。P0-5 在 Agents 里做每个游戏时一次的数值需求决策。市场结算、发薪和生产仍未接入。
 
 ## 目录
 
@@ -10,13 +10,15 @@ Unity 6.3 LTS，团队统一使用 **6000.3.26f1**（changeset `de8167e7440c`）
 Assets/Scripts/Core/        时钟与步进钩子（不引用引擎）
 Assets/Scripts/Domain/      市民、建筑、岗位、商品、金库（不引用引擎）
 Assets/Scripts/World/       建筑工地与库存（不引用引擎）
+Assets/Scripts/Labor/       自愿应聘、空缺、疲劳公式（不引用引擎）
+Assets/Scripts/Agents/      每游戏时一次的需求决策（不引用引擎）
 Assets/Scripts/Bootstrap/   开局种子、GameSession、Unity 帧驱动
 Assets/Scenes/Bootstrap.unity
-docs/                       接口签名与开局种子
+docs/                       接口签名、开局种子、代理人注册
 tests/                      纯 C# 回归，不进 Unity 导入
 ```
 
-`Domain`、`Core`、`World` 的 asmdef 设置了 `noEngineReferences: true`。只有 `Bootstrap` 引用 Unity，而且引擎代码只在 `Bootstrap/Unity/SimulationDriver.cs`。
+`Domain`、`Core`、`World`、`Labor`、`Agents` 的 asmdef 设置了 `noEngineReferences: true`。只有 `Bootstrap` 引用 Unity，而且引擎代码只在 `Bootstrap/Unity/SimulationDriver.cs`。
 
 ## 用编辑器推进时钟
 
@@ -38,7 +40,7 @@ tests/                      纯 C# 回归，不进 Unity 导入
 dotnet test tests/SocialEvolution.Tests/SocialEvolution.Tests.csproj
 ```
 
-测试工程把 `Assets/Scripts` 里的纯 C# 编成四个程序集（不含 `SimulationDriver`）。播放模式的推进对应 `AdvanceRealtime`；测试和脚本用 `StepHours`，它不受暂停和倍率影响。
+测试工程把 `Assets/Scripts` 里的纯 C# 编成程序集（不含 `SimulationDriver`）。播放模式的推进对应 `AdvanceRealtime`；测试和脚本用 `StepHours`，它不受暂停和倍率影响。
 
 ```csharp
 GameSession session = GameSession.CreateNew(); // 第 1 日 0 时，已挂空的小时/日回调
@@ -73,7 +75,7 @@ session.Time.Pause();                          // 之后 AdvanceRealtime 不再�
 - 没有私企模块。
 - 没有点名派工。不存在把市民和岗位绑在一起的 API。`WorldState.SetJobPosting` 只改编制、时薪和 `RequiredSkillId`。在职人数不在 Domain。
 - `Treasury.Debit` 可以把余额扣成负数。没有 Game Over。
-- 决策如果以后要做，只用纯数值 Utility。这里没有聊天，也没有语言模型调用。
+- 代理人决策只用纯数值 Utility（见 [docs/agents.md](docs/agents.md)）。没有聊天，也没有语言模型调用。
 - 商品只有 `Food`、`Wood`、`Tool`。
 
 ## 接口摘要
@@ -132,4 +134,8 @@ public static class Inventory
 
 ## 本里程碑不做
 
-招聘撮合、离职、发薪、生产配方、市场订单、价格、税收、移民、存档、Utility 评分、聊天。小时和日回调的默认实现是 `SimNoOp`，推进时钟不会改金库、库存、人口或空岗。
+发薪、生产配方、市场订单、价格、税收、移民、存档、聊天，以及 Bootstrap 里的统计面板。`GameSession.CreateNew` 仍只挂 `SimNoOp`。不另外注册 Labor 或 Agents 的小时驱动时，推进时钟不会改金库、库存、人口或空岗。
+
+## 代理人
+
+每个游戏时，`AgentsHourDriver` 让每个 `AgentBrain` 按最高 NeedScore 执行一个行动：求职、辞职、工作、进食、睡眠、购物或闲置。繁荣指数只软改权重，饥饿不会被硬关掉。注册方式见 [docs/agents.md](docs/agents.md)。`SimulationDriver.Update` 只推进时钟；要让场景里的人决策，在 `Awake` 里对 `Session.Time` 调用 `AgentsHourDriver.Register`。

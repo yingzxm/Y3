@@ -2,7 +2,7 @@
 
 引擎：Unity 6.3 LTS **6000.3.26f1**（changeset `de8167e7440c`）。全员用 Hub 安装这一 patch。
 
-程序集：`SocialEvolution.Core`、`SocialEvolution.Domain`、`SocialEvolution.World` 不引用 Unity。`SocialEvolution.Bootstrap` 引用这三者；`MonoBehaviour` 只出现在 `SimulationDriver`。
+程序集：`SocialEvolution.Core`、`SocialEvolution.Domain`、`SocialEvolution.World`、`SocialEvolution.Labor`、`SocialEvolution.Agents` 不引用 Unity。`SocialEvolution.Bootstrap` 引用 Core、Domain、World；`MonoBehaviour` 只出现在 `SimulationDriver`。Agents 另引用 Labor。
 
 ## 时间
 
@@ -281,6 +281,102 @@ public sealed class LaborHourDriver
 ```
 
 撤下编制后，下一次劳动查询会放开仍记在该岗位上的人。编制改到低于在职人数时，空缺为 0，已在职的人不被赶走。
+
+## 代理人
+
+程序集 `SocialEvolution.Agents`（`noEngineReferences: true`，C# 9），引用 Core、Domain、Labor。每个游戏时决策一次，不在渲染帧里跑，也不调用语言模型。
+
+`AgentBrain.Tick` 先选 NeedScore 最高的一项需求，再执行对应的一个 `AgentAction`。并列时靠前的需求胜出：饥饿、疲劳、财富、安全。分数不大于 0 则闲置。饥饿永远映射成进食；繁荣指数不能把它关掉。
+
+繁荣指数只软乘基础分。饥饿和疲劳在指数为 1 时保留 `ProsperityBasicNeedFloor`（默认 0.7，最低按 0.01）。财富和安全最多再乘 `1 + 0.15 × 指数`。人格三个标量（风险、工作积极性、储蓄）同样只改权重。在职、安全很急、而且风险偏好高时，安全需求会辞职；否则购物。
+
+求职用 Labor 的 `JobSeeker`（注入的 `JobSeekScoreWeights`）再 `TryApply`。辞职用 `TryQuit`。工作按 `FatigueFormula.Compute` 累加疲劳，睡眠用同一公式扣恢复量。进食和购物只改满足度，不改 `long` 财富。没有派工 API。
+
+`AgentsHourDriver.Register` 挂到和 `LaborHourDriver` 相同的 `ISimStepHooks.RegisterGameHour`。同一小时先辞职；有人辞职时，还没入职的人再决策一次，以便申请刚空出的岗位。`GameSession.CreateNew` 不会自动注册它。场景接入见 [agents.md](agents.md)。
+
+```csharp
+public enum NeedKind { Hunger = 0, Fatigue = 1, Wealth = 2, Safety = 3 }
+
+public enum AgentAction
+{
+    None = 0,
+    SeekJob = 1,
+    Quit = 2,
+    Work = 3,
+    Eat = 4,
+    Sleep = 5,
+    Shop = 6,
+    Idle = 7,
+}
+
+public sealed class AgentNeeds
+{
+    public const float DefaultMaxFatigue = 100f;
+    public float HungerSatisfaction { get; set; }
+    public float FatigueSatisfaction { get; set; }
+    public float WealthSatisfaction { get; set; }
+    public float SafetySatisfaction { get; set; }
+    public float FatigueLoad { get; }
+    public float GetUrgency(NeedKind kind);
+    public float GetNeedScore(NeedKind kind, float baseScore);
+    public void SyncFatigueFromLoad(float fatigueLoad, float maxFatigue = 100f);
+}
+
+public sealed class PersonalityScalars
+{
+    public PersonalityScalars(float riskPreference, float workDrive, float savingTendency);
+    public float RiskPreference { get; set; }
+    public float WorkDrive { get; set; }
+    public float SavingTendency { get; set; }
+}
+
+public interface IDecisionMaker
+{
+    AgentAction Decide(in AgentDecisionContext context);
+}
+
+public sealed class MaxNeedDecisionMaker : IDecisionMaker
+{
+    public const float MinimumProsperityFloor = 0.01f;
+    public float ProsperityBasicNeedFloor { get; set; }
+    public AgentAction Decide(in AgentDecisionContext context);
+    public NeedScores Evaluate(in AgentDecisionContext context);
+}
+
+public sealed class AgentBrain
+{
+    public AgentBrain(
+        IPersonReadModel person,
+        ILaborMarket laborMarket,
+        IDecisionMaker? decisionMaker = null,
+        AgentNeeds? needs = null,
+        PersonalityScalars? personality = null,
+        JobSeekScoreWeights? jobSeekWeights = null);
+    public CitizenId CitizenId { get; }
+    public AgentNeeds Needs { get; }
+    public PersonalityScalars Personality { get; }
+    public AgentAction LastAction { get; }
+    public bool IsEmployed { get; }
+    public void BindPerson(IPersonReadModel person);
+    public AgentAction SelectAction(float? prosperityIndex = null);
+    public void Execute(AgentAction action, GameDateTime now, JobSeekContext? seekContext = null);
+    public AgentAction Tick(GameDateTime now, JobSeekContext? seekContext = null, float? prosperityIndex = null);
+}
+
+public sealed class AgentsHourDriver
+{
+    public AgentsHourDriver();
+    public AgentsHourDriver(IEnumerable<AgentBrain> brains);
+    public float? ProsperityIndex { get; set; }
+    public JobSeekContext SeekContext { get; set; }
+    public int HoursProcessed { get; }
+    public void Add(AgentBrain brain);
+    public bool Remove(AgentBrain brain);
+    public void OnGameHour(GameDateTime now);
+    public void Register(ISimStepHooks hooks);
+    public void Unregister(ISimStepHooks hooks);
+}
+```
 
 ## 世界与种子
 

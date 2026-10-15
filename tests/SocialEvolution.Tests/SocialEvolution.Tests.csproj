@@ -18,5 +18,6 @@
     <ProjectReference Include="..\SocialEvolution.World\SocialEvolution.World.csproj" />
     <ProjectReference Include="..\SocialEvolution.Bootstrap\SocialEvolution.Bootstrap.csproj" />
     <ProjectReference Include="..\SocialEvolution.Labor\SocialEvolution.Labor.csproj" />
+    <ProjectReference Include="..\SocialEvolution.Agents\SocialEvolution.Agents.csproj" />
   </ItemGroup>
 </Project>
