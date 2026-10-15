@@ -1,0 +1,42 @@
+# Unity generated
+/[Ll]ibrary/
+/[Tt]emp/
+/[Oo]bj/
+/[Bb]uild/
+/[Bb]uilds/
+/[Ll]ogs/
+/[Uu]ser[Ss]ettings/
+/[Mm]emoryCaptures/
+/[Rr]ecordings/
+
+# IDE / OS
+.vs/
+.idea/
+.DS_Store
+Thumbs.db
+*.user
+*.suo
+*.rsuser
+
+# Unity generated project files
+*.csproj
+*.unityproj
+*.sln
+*.suo
+*.tmp
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+
+# Pure C# test shims live outside Assets and must stay tracked
+!tests/**/*.csproj
+
+# Test output
+tests/**/bin/
+tests/**/obj/
+TestResults/
