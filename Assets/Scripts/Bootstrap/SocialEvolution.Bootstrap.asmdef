@@ -4,7 +4,10 @@
   "references": [
     "SocialEvolution.Core",
     "SocialEvolution.Domain",
-    "SocialEvolution.World"
+    "SocialEvolution.World",
+    "SocialEvolution.Labor",
+    "SocialEvolution.Agents",
+    "SocialEvolution.Stats"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],

@@ -1,0 +1,20 @@
+{
+  "name": "SocialEvolution.Stats",
+  "rootNamespace": "SocialEvolution.Stats",
+  "references": [
+    "SocialEvolution.Core",
+    "SocialEvolution.Domain",
+    "SocialEvolution.World",
+    "SocialEvolution.Labor",
+    "SocialEvolution.Agents"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": true
+}

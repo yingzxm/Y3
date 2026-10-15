@@ -292,7 +292,7 @@ public sealed class LaborHourDriver
 
 求职用 Labor 的 `JobSeeker`（注入的 `JobSeekScoreWeights`）再 `TryApply`。辞职用 `TryQuit`。工作按 `FatigueFormula.Compute` 累加疲劳，睡眠用同一公式扣恢复量。进食和购物只改满足度，不改 `long` 财富。没有派工 API。
 
-`AgentsHourDriver.Register` 挂到和 `LaborHourDriver` 相同的 `ISimStepHooks.RegisterGameHour`。同一小时先辞职；有人辞职时，还没入职的人再决策一次，以便申请刚空出的岗位。`GameSession.CreateNew` 不会自动注册它。场景接入见 [agents.md](agents.md)。
+`AgentsHourDriver.Register` 挂到和 `LaborHourDriver` 相同的 `ISimStepHooks.RegisterGameHour`。同一小时先辞职；有人辞职时，还没入职的人再决策一次，以便申请刚空出的岗位。每执行一个行动，往 `CitizenActionLog` 追加一行：求职、辞职、上班、进食、睡眠、购物、闲置都会记，同一小时每人一行。`GameSession.CreateNew` 不会自动注册它。场景接入见 [agents.md](agents.md)，点选和统计见 [stats.md](stats.md)。
 
 ```csharp
 public enum NeedKind { Hunger = 0, Fatigue = 1, Wealth = 2, Safety = 3 }
@@ -367,14 +367,140 @@ public sealed class AgentsHourDriver
 {
     public AgentsHourDriver();
     public AgentsHourDriver(IEnumerable<AgentBrain> brains);
+    public AgentsHourDriver(IEnumerable<AgentBrain> brains, CitizenActionLog log);
     public float? ProsperityIndex { get; set; }
     public JobSeekContext SeekContext { get; set; }
     public int HoursProcessed { get; }
+    public CitizenActionLog Log { get; }
     public void Add(AgentBrain brain);
     public bool Remove(AgentBrain brain);
+    public bool TryGetBrain(CitizenId citizenId, out AgentBrain? brain);
     public void OnGameHour(GameDateTime now);
     public void Register(ISimStepHooks hooks);
     public void Unregister(ISimStepHooks hooks);
+}
+
+public readonly struct CitizenLogLine
+{
+    public GameDateTime When { get; }
+    public CitizenId CitizenId { get; }
+    public AgentAction Action { get; }
+    public string Text { get; }
+}
+
+public static class CitizenLogText
+{
+    public static string Format(GameDateTime when, AgentAction action);
+    public static string Verb(AgentAction action);
+}
+
+public sealed class CitizenActionLog
+{
+    public const int MinimumCapacity = 3;
+    public const int DefaultCapacity = 8;
+    public CitizenActionLog(int capacityPerCitizen = 8);
+    public int CapacityPerCitizen { get; }
+    public void Append(CitizenId citizenId, GameDateTime when, AgentAction action, string text);
+    public int Count(CitizenId citizenId);
+    public IReadOnlyList<CitizenLogLine> GetRecent(CitizenId citizenId);
+}
+```
+
+## 统计与点选
+
+程序集 `SocialEvolution.Stats`（`noEngineReferences: true`，C# 9），引用 Core、Domain、World、Labor、Agents。不引用 Unity，也不引用 Bootstrap。中间价对齐 Economy 的 `ICityMarket.GetState(good).MidPrice`（`GoodMarketState.MidPrice`，`long`）。当前 main 还没有 Economy 程序集，所以价格从 `IMidPriceSource` 读入。演示锚定价是食物 10、木材 8、工具 40。市场接入后每个游戏时：
+
+```csharp
+readout.UseLivePrices(() => new GoodMidPrices(
+    market.GetState(Good.Food).MidPrice,
+    market.GetState(Good.Wood).MidPrice,
+    market.GetState(Good.Tool).MidPrice));
+```
+
+就业率 = 在职人数 / 人口。平均时薪是在职市民 `WagePerHour` 的算术平均，没有在职时为 0。贫富指标是财富的基尼系数，范围 [0, 1]；财富有负数时先平移到最小值为 0。现金是 `Citizen.Wealth`。最急需求看 `AgentNeeds` 的紧急度，并列时饥饿、疲劳、财富、安全靠前的胜出；紧急度全是 0 则没有最急需求。
+
+`DemoReadout.Attach` 给每个编制登记 8 小时白班（不改编制人数），为每位市民建 `AgentBrain`，并把 `AgentsHourDriver` 挂到时钟。`GameSession.CreateNew` 仍然只挂 `SimNoOp`。场景面板见 [stats.md](stats.md)。
+
+```csharp
+public interface IMidPriceSource
+{
+    bool TryGetMidPrice(Good good, out long midPrice);
+}
+
+public sealed class GoodMidPrices : IMidPriceSource
+{
+    public const long DemoFood = 10L;
+    public const long DemoWood = 8L;
+    public const long DemoTool = 40L;
+    public GoodMidPrices(long food, long wood, long tool);
+    public static GoodMidPrices DemoOpening();
+}
+
+public readonly struct CityStats
+{
+    public int Population { get; }
+    public int EmployedCount { get; }
+    public double EmploymentRate { get; }
+    public double AverageWage { get; }
+    public long FoodMidPrice { get; }
+    public long WoodMidPrice { get; }
+    public long ToolMidPrice { get; }
+    public bool HasMidPrices { get; }
+    public double RichPoorIndex { get; }
+}
+
+public static class CityStatsReader
+{
+    public static CityStats Read(WorldState world, ILaborMarket labor, IMidPriceSource prices);
+}
+
+public static class RichPoor
+{
+    public static double Compute(IReadOnlyList<Citizen> citizens);
+}
+
+public readonly struct CitizenView
+{
+    public CitizenId Id { get; }
+    public string Name { get; }
+    public long Cash { get; }
+    public bool Employed { get; }
+    public string JobTitle { get; }
+    public long WagePerHour { get; }
+    public bool HasTopNeed { get; }
+    public NeedKind TopNeed { get; }
+    public float TopNeedUrgency { get; }
+    public string TopNeedLabel { get; }
+    public IReadOnlyList<CitizenLogLine> RecentLogs { get; }
+    public bool TryGetThreeRecentLogs(out string first, out string second, out string third);
+}
+
+public sealed class CitizenPicker
+{
+    public CitizenPicker(WorldState world, ILaborMarket labor, AgentsHourDriver agents);
+    public CitizenId? SelectedId { get; }
+    public bool Select(CitizenId id);
+    public void Clear();
+    public bool SelectNext();
+    public bool SelectPrevious();
+    public bool TryGetSelected(out CitizenView view);
+    public bool TryRead(CitizenId id, out CitizenView view);
+}
+
+public sealed class DemoReadout
+{
+    public const float DemoShiftHours = 8f;
+    public DemoReadout(WorldState world, ILaborMarket labor, AgentsHourDriver agents, IMidPriceSource prices);
+    public static DemoReadout Attach(ITimeService time, WorldState world);
+    public static DemoReadout Attach(ITimeService time, WorldState world, IMidPriceSource prices);
+    public static void PublishDayShift(ILaborMarket labor, WorldState world);
+    public void UseLivePrices(Func<IMidPriceSource> readEachTime);
+    public CityStats Read();
+    public bool Select(CitizenId id);
+    public bool SelectNext();
+    public bool SelectPrevious();
+    public bool TryGetSelected(out CitizenView view);
+    public bool TryGetThreeRecentLogs(out string first, out string second, out string third);
 }
 ```
 

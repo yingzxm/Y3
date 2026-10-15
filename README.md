@@ -2,7 +2,7 @@
 
 Unity 6.3 LTS，团队统一使用 **6000.3.26f1**（changeset `de8167e7440c`）。请用 Unity Hub 安装这一 patch，不要换别的 6000.3 版本。版本锁在 `ProjectSettings/ProjectVersion.txt`。
 
-P0-1～P0-3 能推进时钟、给出开局种子、让建筑入出库。P0-4 在 Labor 里做自愿应聘和真实空缺。P0-5 在 Agents 里做每个游戏时一次的数值需求决策。市场结算、发薪和生产仍未接入。
+P0-1～P0-3 能推进时钟、给出开局种子、让建筑入出库。P0-4 在 Labor 里做自愿应聘和真实空缺。P0-5 在 Agents 里做每个游戏时一次的数值需求决策。P0-8 读出人口、就业率、平均时薪、三种商品中间价和贫富指标，并可以点选市民看现金、工作和至少 3 行行动日志。市场结算、发薪和生产仍未接入。
 
 ## 目录
 
@@ -12,27 +12,29 @@ Assets/Scripts/Domain/      市民、建筑、岗位、商品、金库（不引�
 Assets/Scripts/World/       建筑工地与库存（不引用引擎）
 Assets/Scripts/Labor/       自愿应聘、空缺、疲劳公式（不引用引擎）
 Assets/Scripts/Agents/      每游戏时一次的需求决策（不引用引擎）
-Assets/Scripts/Bootstrap/   开局种子、GameSession、Unity 帧驱动
+Assets/Scripts/Stats/       人口、就业、时薪、中间价、贫富、市民点选（不引用引擎）
+Assets/Scripts/Bootstrap/   开局种子、GameSession、Unity 帧驱动和演示面板
 Assets/Scenes/Bootstrap.unity
-docs/                       接口签名、开局种子、代理人注册
+docs/                       接口签名、开局种子、代理人注册、统计点选
 tests/                      纯 C# 回归，不进 Unity 导入
 ```
 
-`Domain`、`Core`、`World`、`Labor`、`Agents` 的 asmdef 设置了 `noEngineReferences: true`。只有 `Bootstrap` 引用 Unity，而且引擎代码只在 `Bootstrap/Unity/SimulationDriver.cs`。
+`Domain`、`Core`、`World`、`Labor`、`Agents`、`Stats` 的 asmdef 设置了 `noEngineReferences: true`。只有 `Bootstrap` 引用 Unity，而且引擎代码只在 `Bootstrap/Unity/`（`SimulationDriver` 和 `StatsDebugPanel`）。
 
 ## 用编辑器推进时钟
 
 1. 用 Hub 打开本仓库根目录，编辑器版本选 **6000.3.26f1**。
 2. 首次打开会生成 `Library/` 和其余 `ProjectSettings`。不要提交 `Library/`。
-3. 打开 `Assets/Scenes/Bootstrap.unity`。场景里有一个 `Simulation` 物体，挂着 `SimulationDriver`。
-4. 进入 Play。`Awake` 调用 `GameSession.CreateNew()`，`Update` 调用 `AdvanceRealtime(Time.deltaTime)`。
+3. 打开 `Assets/Scenes/Bootstrap.unity`。场景里有一个 `Simulation` 物体，挂着 `SimulationDriver` 和 `StatsDebugPanel`。
+4. 进入 Play。`Awake` 调用 `GameSession.CreateNew()`，`Update` 调用 `AdvanceRealtime(Time.deltaTime)`。`StatsDebugPanel.Start` 再调用 `DemoReadout.Attach`，把代理人挂到时钟上。
 5. 默认 **1 现实秒 = 1 游戏时**（1x）。一天 24 游戏时，所以 1x 下一天是 24 现实秒。
 6. 暂停：`driver.Pause()`。恢复：`driver.Resume()`。暂停期间倍率保持不变。
 7. 五倍速：`driver.SetTimeScale(TimeScales.X5)`。也接受 20、100、1000 和任意有限正数。`0` 不是倍率，暂停用 `Pause()`。
+8. Game 视图左上角是统计和点选：人口、就业率、平均时薪、食物/木材/工具中间价、贫富指标。用「上一位」「下一位」或填编号点「选中」。选中后能看到现金、工作、最急需求，以及最近行动。走满 3 个游戏时后至少有 3 行。细目见 [docs/stats.md](docs/stats.md)。
 
-场景没有相机，Game 视图是空的。这局里只有时钟在走。
+场景没有相机。统计是 IMGUI，不依赖相机。拆掉 `StatsDebugPanel` 之后，这一局又只走时钟。
 
-若场景在导入时提示缺脚本，确认 `SimulationDriver.cs.meta` 的 guid 是 `e7c4a1b25d6f4e0a9c3b5d7e1f2a4b6c`。也可以新建空场景，加一个空物体，挂上 `SimulationDriver`，再 Play。
+若场景在导入时提示缺脚本，确认 `SimulationDriver.cs.meta` 的 guid 是 `e7c4a1b25d6f4e0a9c3b5d7e1f2a4b6c`，`StatsDebugPanel.cs.meta` 的 guid 是 `367e710eec604fccbc0348c05f47b95e`。也可以新建空场景，加一个空物体，挂上这两个组件，再 Play。
 
 ## 不打开 Unity 时推进时钟
 
@@ -134,8 +136,8 @@ public static class Inventory
 
 ## 本里程碑不做
 
-发薪、生产配方、市场订单、价格、税收、移民、存档、聊天，以及 Bootstrap 里的统计面板。`GameSession.CreateNew` 仍只挂 `SimNoOp`。不另外注册 Labor 或 Agents 的小时驱动时，推进时钟不会改金库、库存、人口或空岗。
+发薪、生产配方、市场订单、成交调价、税收、移民、存档、聊天，以及完整界面皮肤。统计面板只读：三种中间价由调用方传入（演示用锚定价 10 / 8 / 40），本里程碑不结算市场。`GameSession.CreateNew` 仍只挂 `SimNoOp`。不另外注册 Labor 或 Agents 的小时驱动时，推进时钟不会改金库、库存、人口或空岗。场景里的 `StatsDebugPanel` 会注册代理人，所以 Play 之后空岗会变；金库和库存仍不变。
 
 ## 代理人
 
-每个游戏时，`AgentsHourDriver` 让每个 `AgentBrain` 按最高 NeedScore 执行一个行动：求职、辞职、工作、进食、睡眠、购物或闲置。繁荣指数只软改权重，饥饿不会被硬关掉。注册方式见 [docs/agents.md](docs/agents.md)。`SimulationDriver.Update` 只推进时钟；要让场景里的人决策，在 `Awake` 里对 `Session.Time` 调用 `AgentsHourDriver.Register`。
+每个游戏时，`AgentsHourDriver` 让每个 `AgentBrain` 按最高 NeedScore 执行一个行动：求职、辞职、工作、进食、睡眠、购物或闲置。繁荣指数只软改权重，饥饿不会被硬关掉。注册方式见 [docs/agents.md](docs/agents.md)。`SimulationDriver.Update` 只推进时钟。场景里由 `StatsDebugPanel` 在 `Start` 调用 `DemoReadout.Attach(Session.Time, Session.World)`，驱动会把每个行动写进该市民的日志。点选和至少 3 行日志见 [docs/stats.md](docs/stats.md)。
