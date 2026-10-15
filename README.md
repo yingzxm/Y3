@@ -56,21 +56,22 @@ session.Time.Pause();                          // 之后 AdvanceRealtime 不再�
 
 | 项 | 内容 |
 |---|---|
-| 市民 | 120，`市民001`–`市民120`，只有编号和名字 |
+| 市民 | 120，`市民001`–`市民120`，含年龄、学历、技能、健康系数、个人财富和住所 |
 | 金库 | 500_000，允许之后被扣成负数，不因此结束游戏 |
 | 建筑 | 政府厅、城郊农场、工具工坊、集市、公共住宅 ×4 |
 | 政府库存 | 食物 2400、木材 100、工具 20 |
 | 农场库存 | 食物 100、工具 10 |
 | 工厂库存 | 木材 50 |
 | 市场 / 住宅库存 | 空 |
-| 岗位 | 农民 20、农场主管 2、工人 12、商人 4、公务员 5，全部空缺 |
+| 岗位 | 农民 20、农场主管 2、工人 12、商人 4、公务员 5。`Openings` 只是编制，Domain 不记录在职人数 |
+| 住所 | 4 栋住宅各 30 人，记在市民的 `ResidenceId` |
 
-食物 2400 = 120 人 × 20 日的账面储备。本里程碑不吃掉食物。住宅居住容量 4×30 = 120，只是数字，没有入住名单。
+食物 2400 = 120 人 × 20 日的账面储备。本里程碑不吃掉食物。
 
 ## 硬约束
 
 - 没有私企模块。
-- 没有点名派工。不存在 `AssignCitizenToJob(citizenId, buildingId)` 这类同时接收市民和建筑/岗位的 API。`SetJobPosting` 只改编制、时薪和技能门槛。门槛不够就保持空岗，`VacantSlots` 始终等于编制。
+- 没有点名派工。不存在把市民和岗位绑在一起的 API。`WorldState.SetJobPosting` 只改编制、时薪和 `RequiredSkillId`。在职人数不在 Domain。
 - `Treasury.Debit` 可以把余额扣成负数。没有 Game Over。
 - 决策如果以后要做，只用纯数值 Utility。这里没有聊天，也没有语言模型调用。
 - 商品只有 `Food`、`Wood`、`Tool`。
@@ -88,6 +89,7 @@ public interface ITimeService : ISimStepHooks
     bool IsPaused { get; }
     float TimeScale { get; }
     float SecondsPerGameHour { get; }
+    int MaxHoursPerAdvance { get; }
     void Pause();
     void Resume();
     void SetTimeScale(float scale);
@@ -118,6 +120,11 @@ public interface IInventory
     int GetQuantity(Good good);
     InventoryResult TryDeposit(Good good, int quantity);
     InventoryResult TryWithdraw(Good good, int quantity);
+}
+
+public static class Inventory
+{
+    public static InventoryResult TryTransfer(IInventory from, IInventory to, Good good, int quantity);
 }
 ```
 

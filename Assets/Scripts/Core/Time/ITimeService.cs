@@ -23,6 +23,9 @@ namespace SocialEvolution.Core
         /// <summary>1x 下，多少现实秒推进 1 个游戏时。</summary>
         float SecondsPerGameHour { get; }
 
+        /// <summary>单次 <see cref="AdvanceRealtime"/> 最多推进的游戏时。超出的滞留时间丢弃。</summary>
+        int MaxHoursPerAdvance { get; }
+
         void Pause();
 
         void Resume();
@@ -32,7 +35,7 @@ namespace SocialEvolution.Core
 
         /// <summary>
         /// 按现实秒推进。暂停、或秒数为 0 时返回 0。
-        /// 返回本帧实际跨过的游戏时数量。
+        /// 返回本帧实际跨过的游戏时数量，不超过 <see cref="MaxHoursPerAdvance"/>。
         /// </summary>
         int AdvanceRealtime(float deltaSeconds);
 

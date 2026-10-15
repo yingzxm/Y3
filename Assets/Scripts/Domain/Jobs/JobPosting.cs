@@ -4,13 +4,20 @@ using System;
 namespace SocialEvolution.Domain
 {
     /// <summary>
-    /// 岗位编制。只记录空缺人数、时薪和技能门槛。
-    /// 没有入职对象；<see cref="VacantSlots"/> 在本里程碑始终等于编制。
-    /// 门槛不够时保持空岗，不提供把某位市民派进岗位的方法。
+    /// 岗位编制。只记录编制人数、时薪和要求的技能。
+    /// 在职人数和雇佣记录不在这里，留给以后的 Labor 模块。
+    /// 没有把某位市民派进岗位的方法。
     /// </summary>
     public sealed class JobPosting
     {
-        private JobPosting(JobPostingId id, BuildingId buildingId, string title, int openings, int wagePerHour, int minSkillLevel)
+        private JobPosting(
+            JobPostingId id,
+            BuildingId buildingId,
+            string title,
+            int openings,
+            long wagePerHour,
+            int minSkillLevel,
+            string requiredSkillId)
         {
             if (id.Value <= 0)
             {
@@ -25,7 +32,8 @@ namespace SocialEvolution.Domain
             Id = id;
             BuildingId = buildingId;
             Title = string.Empty;
-            Configure(title, openings, wagePerHour, minSkillLevel);
+            RequiredSkillId = string.Empty;
+            Configure(title, openings, wagePerHour, minSkillLevel, requiredSkillId);
         }
 
         public JobPostingId Id { get; }
@@ -34,17 +42,18 @@ namespace SocialEvolution.Domain
 
         public string Title { get; private set; }
 
+        /// <summary>编制人数。不是在职人数。</summary>
         public int Openings { get; private set; }
 
         /// <summary>货币单位 / 游戏时。</summary>
-        public int WagePerHour { get; private set; }
+        public long WagePerHour { get; private set; }
 
         public int MinSkillLevel { get; private set; }
 
-        /// <summary>无人入职。空缺等于编制。</summary>
-        public int VacantSlots => Openings;
+        /// <summary><see cref="SkillIds"/> 中的技能编号。</summary>
+        public string RequiredSkillId { get; private set; }
 
-        public void Configure(string title, int openings, int wagePerHour, int minSkillLevel)
+        public void Configure(string title, int openings, long wagePerHour, int minSkillLevel, string requiredSkillId)
         {
             if (string.IsNullOrWhiteSpace(title))
             {
@@ -66,15 +75,28 @@ namespace SocialEvolution.Domain
                 throw new ArgumentOutOfRangeException(nameof(minSkillLevel), minSkillLevel, "技能门槛不能为负。");
             }
 
+            if (!SkillIds.IsKnown(requiredSkillId))
+            {
+                throw new ArgumentException("岗位要求的技能必须使用 SkillIds 常量。", nameof(requiredSkillId));
+            }
+
             Title = title.Trim();
             Openings = openings;
             WagePerHour = wagePerHour;
             MinSkillLevel = minSkillLevel;
+            RequiredSkillId = requiredSkillId;
         }
 
-        internal static JobPosting Create(JobPostingId id, BuildingId buildingId, string title, int openings, int wagePerHour, int minSkillLevel)
+        internal static JobPosting Create(
+            JobPostingId id,
+            BuildingId buildingId,
+            string title,
+            int openings,
+            long wagePerHour,
+            int minSkillLevel,
+            string requiredSkillId)
         {
-            return new JobPosting(id, buildingId, title, openings, wagePerHour, minSkillLevel);
+            return new JobPosting(id, buildingId, title, openings, wagePerHour, minSkillLevel, requiredSkillId);
         }
     }
 }

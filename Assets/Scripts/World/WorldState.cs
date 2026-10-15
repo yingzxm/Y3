@@ -84,6 +84,36 @@ namespace SocialEvolution.World
                 _siteIndex.Add(buildingId, i);
                 _sites[i] = site;
             }
+
+            var residentCounts = new Dictionary<int, int>();
+            for (int i = 0; i < _citizens.Length; i++)
+            {
+                Citizen citizen = _citizens[i];
+                if (!_siteIndex.TryGetValue(citizen.ResidenceId.Value, out int homeIndex))
+                {
+                    throw new ArgumentException($"市民 {citizen.Id.Value} 的住所 {citizen.ResidenceId.Value} 不存在。", nameof(citizens));
+                }
+
+                Building home = _sites[homeIndex].Building;
+                if (home.Kind != BuildingKind.Housing)
+                {
+                    throw new ArgumentException($"市民 {citizen.Id.Value} 的住所不是住宅。", nameof(citizens));
+                }
+
+                int count;
+                if (!residentCounts.TryGetValue(home.Id.Value, out count))
+                {
+                    count = 0;
+                }
+
+                count++;
+                if (count > home.HousingResidentCapacity)
+                {
+                    throw new ArgumentException($"住宅 {home.Id.Value} 超过居住容量 {home.HousingResidentCapacity}。", nameof(citizens));
+                }
+
+                residentCounts[home.Id.Value] = count;
+            }
         }
 
         public IReadOnlyList<Citizen> Citizens => _citizens;
@@ -151,12 +181,19 @@ namespace SocialEvolution.World
             return site!.Inventory.TryWithdraw(good, quantity);
         }
 
-        /// <summary>设置或改写某建筑的岗位编制。不接收市民，也不填补空岗。</summary>
-        public JobPosting SetJobPosting(BuildingId buildingId, JobPostingId postingId, string title, int openings, int wagePerHour, int minSkillLevel)
+        /// <summary>设置或改写某建筑的岗位编制。不接收市民，也不记录在职人数。</summary>
+        public JobPosting SetJobPosting(
+            BuildingId buildingId,
+            JobPostingId postingId,
+            string title,
+            int openings,
+            long wagePerHour,
+            int minSkillLevel,
+            string requiredSkillId)
         {
             BuildingSite site = GetSite(buildingId);
             EnsureJobIdAvailable(buildingId, postingId);
-            return site.Building.SetJobPosting(postingId, title, openings, wagePerHour, minSkillLevel);
+            return site.Building.SetJobPosting(postingId, title, openings, wagePerHour, minSkillLevel, requiredSkillId);
         }
 
         public bool RemoveJobPosting(BuildingId buildingId, JobPostingId postingId)

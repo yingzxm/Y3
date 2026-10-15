@@ -1,3 +1,4 @@
+using System;
 using SocialEvolution.Domain;
 using SocialEvolution.World;
 using Xunit;
@@ -91,6 +92,30 @@ namespace SocialEvolution.Tests
             InventoryResult deposited = world.TryDeposit(new BuildingId(1), Good.Food, 2);
             Assert.True(deposited.Succeeded);
             Assert.Equal(6, world.GetQuantity(new BuildingId(1), Good.Food));
+        }
+
+        [Fact]
+        public void TryTransfer_IsAtomic()
+        {
+            var from = new Inventory(10, (Good.Food, 5), (Good.Wood, 1));
+            var to = new Inventory(4, (Good.Tool, 2));
+
+            InventoryResult moved = Inventory.TryTransfer(from, to, Good.Food, 2);
+            Assert.True(moved.Succeeded);
+            Assert.Equal(3, from.GetQuantity(Good.Food));
+            Assert.Equal(1, from.GetQuantity(Good.Wood));
+            Assert.Equal(2, to.GetQuantity(Good.Food));
+            Assert.Equal(2, to.GetQuantity(Good.Tool));
+
+            InventoryResult blocked = Inventory.TryTransfer(from, to, Good.Food, 1);
+            Assert.Equal(InventoryRejection.ExceedsCapacity, blocked.Rejection);
+            Assert.Equal(3, from.GetQuantity(Good.Food));
+            Assert.Equal(2, to.GetQuantity(Good.Food));
+
+            InventoryResult missing = Inventory.TryTransfer(from, to, Good.Wood, 4);
+            Assert.Equal(InventoryRejection.InsufficientStock, missing.Rejection);
+            Assert.Equal(1, from.GetQuantity(Good.Wood));
+            Assert.Equal(0, to.GetQuantity(Good.Wood));
         }
     }
 }

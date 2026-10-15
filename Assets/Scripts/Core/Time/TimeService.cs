@@ -7,6 +7,9 @@ namespace SocialEvolution.Core
     {
         public const float DefaultSecondsPerGameHour = 1f;
 
+        /// <summary>卡顿后单帧最多补 1 个游戏日，避免一次追完积压的小时。</summary>
+        public const int DefaultMaxHoursPerAdvance = 24;
+
         private readonly SimStepHooks _hooks = new SimStepHooks();
         private readonly double _secondsPerGameHour;
         private double _bankedSeconds;
@@ -14,11 +17,16 @@ namespace SocialEvolution.Core
         private int _stepDepth;
 
         public TimeService()
-            : this(DefaultSecondsPerGameHour, TimeScales.X1)
+            : this(DefaultSecondsPerGameHour, TimeScales.X1, DefaultMaxHoursPerAdvance)
         {
         }
 
         public TimeService(float secondsPerGameHour, float timeScale)
+            : this(secondsPerGameHour, timeScale, DefaultMaxHoursPerAdvance)
+        {
+        }
+
+        public TimeService(float secondsPerGameHour, float timeScale, int maxHoursPerAdvance)
         {
             if (!float.IsFinite(secondsPerGameHour) || secondsPerGameHour <= 0f)
             {
@@ -28,7 +36,13 @@ namespace SocialEvolution.Core
                     "每个游戏时对应的现实秒数必须是有限正数。");
             }
 
+            if (maxHoursPerAdvance <= 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(maxHoursPerAdvance), maxHoursPerAdvance, "每帧小时上限必须为正。");
+            }
+
             _secondsPerGameHour = secondsPerGameHour;
+            MaxHoursPerAdvance = maxHoursPerAdvance;
             Now = GameDateTime.Origin;
             SetTimeScale(timeScale);
         }
@@ -44,6 +58,8 @@ namespace SocialEvolution.Core
         public float TimeScale => _timeScale;
 
         public float SecondsPerGameHour => (float)_secondsPerGameHour;
+
+        public int MaxHoursPerAdvance { get; }
 
         public void Pause() => IsPaused = true;
 
@@ -87,10 +103,18 @@ namespace SocialEvolution.Core
                 return 0;
             }
 
-            _bankedSeconds -= hours * _secondsPerGameHour;
-            if (_bankedSeconds < 0d && _bankedSeconds > -1e-8d)
+            if (hours > MaxHoursPerAdvance)
             {
+                hours = MaxHoursPerAdvance;
                 _bankedSeconds = 0d;
+            }
+            else
+            {
+                _bankedSeconds -= hours * _secondsPerGameHour;
+                if (_bankedSeconds < 0d && _bankedSeconds > -1e-8d)
+                {
+                    _bankedSeconds = 0d;
+                }
             }
 
             return StepHoursCore(hours);

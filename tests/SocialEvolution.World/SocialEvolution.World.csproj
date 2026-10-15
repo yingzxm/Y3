@@ -3,7 +3,7 @@
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>disable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <LangVersion>12.0</LangVersion>
+    <LangVersion>9.0</LangVersion>
     <AssemblyName>SocialEvolution.World</AssemblyName>
     <RootNamespace>SocialEvolution.World</RootNamespace>
     <IsPackable>false</IsPackable>

@@ -34,6 +34,9 @@ namespace SocialEvolution.Core
         /// <summary>第 1 游戏日第 0 时。</summary>
         public static GameDateTime Origin => new GameDateTime(1, 0);
 
+        /// <summary>从开局起累计的游戏时。开局为 0。</summary>
+        public long TotalHours => ((long)(Day - 1) * HoursPerDay) + Hour;
+
         public GameDateTime AddHours(int hours)
         {
             if (hours < 0)

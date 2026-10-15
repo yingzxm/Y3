@@ -1,3 +1,7 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using System.Reflection;
 using System.Text.Json;
 using SocialEvolution.Domain;
@@ -90,8 +94,17 @@ namespace SocialEvolution.Tests
                 }
             }
 
-            AssertNoCitizenField(typeof(JobPosting));
-            AssertNoCitizenField(typeof(Building));
+            AssertNoEmploymentStorage(typeof(JobPosting));
+            AssertNoEmploymentStorage(typeof(Building));
+            Assert.Null(typeof(JobPosting).GetProperty("VacantSlots"));
+            Assert.Null(typeof(JobPosting).GetProperty("FilledCount"));
+
+            MethodInfo? setPosting = typeof(Building).GetMethod(
+                "SetJobPosting",
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            Assert.NotNull(setPosting);
+            Assert.True(setPosting!.IsAssembly);
+            Assert.False(setPosting.IsPublic);
         }
 
         private static void AssertNoAssignment(Type type, string name, ParameterInfo[] parameters)
@@ -106,32 +119,66 @@ namespace SocialEvolution.Tests
                 throw new Xunit.Sdk.XunitException($"{type.FullName}.{name} looks like a direct assignment API.");
             }
 
+            // 住所可以同时出现市民和建筑编号。派工才会同时出现市民和岗位。
             bool citizen = parameters.Any(parameter => IsCitizen(parameter.ParameterType));
-            bool workplace = parameters.Any(parameter => IsWorkplace(parameter.ParameterType));
-            if (citizen && workplace)
+            bool job = parameters.Any(parameter => IsJob(parameter.ParameterType));
+            if (citizen && job)
             {
-                throw new Xunit.Sdk.XunitException($"{type.FullName}.{name} takes both a citizen and a workplace.");
+                throw new Xunit.Sdk.XunitException($"{type.FullName}.{name} takes both a citizen and a job.");
             }
         }
 
-        private static void AssertNoCitizenField(Type type)
+        private static void AssertNoEmploymentStorage(Type type)
         {
             const BindingFlags flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
             foreach (FieldInfo field in type.GetFields(flags))
             {
-                Assert.False(IsCitizen(field.FieldType));
+                Assert.False(ContainsCitizen(field.FieldType));
+            }
+
+            foreach (PropertyInfo property in type.GetProperties(flags))
+            {
+                Assert.False(ContainsCitizen(property.PropertyType));
+                Assert.NotEqual("FilledCount", property.Name);
             }
         }
 
         private static bool IsCitizen(Type type) => type == typeof(Citizen) || type == typeof(CitizenId);
 
-        private static bool IsWorkplace(Type type)
+        private static bool IsJob(Type type) => type == typeof(JobPosting) || type == typeof(JobPostingId);
+
+        private static bool ContainsCitizen(Type? type)
         {
-            return type == typeof(Building)
-                || type == typeof(BuildingId)
-                || type == typeof(JobPosting)
-                || type == typeof(JobPostingId)
-                || type == typeof(BuildingSite);
+            if (type == null)
+            {
+                return false;
+            }
+
+            if (IsCitizen(type))
+            {
+                return true;
+            }
+
+            if (type.IsArray)
+            {
+                return ContainsCitizen(type.GetElementType());
+            }
+
+            if (!type.IsGenericType)
+            {
+                return false;
+            }
+
+            Type[] arguments = type.GetGenericArguments();
+            for (int i = 0; i < arguments.Length; i++)
+            {
+                if (ContainsCitizen(arguments[i]))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private static Assembly[] RuntimeAssemblies()

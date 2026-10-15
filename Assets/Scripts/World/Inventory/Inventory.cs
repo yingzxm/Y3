@@ -132,6 +132,43 @@ namespace SocialEvolution.World
             return InventoryResult.Ok(quantity);
         }
 
+        /// <summary>
+        /// 把指定数量从 <paramref name="from"/> 整笔调到 <paramref name="to"/>。
+        /// 任一步失败则双方数量都保持调用前的值。
+        /// </summary>
+        public static InventoryResult TryTransfer(IInventory from, IInventory to, Good good, int quantity)
+        {
+            if (from == null)
+            {
+                throw new ArgumentNullException(nameof(from));
+            }
+
+            if (to == null)
+            {
+                throw new ArgumentNullException(nameof(to));
+            }
+
+            InventoryResult withdrawn = from.TryWithdraw(good, quantity);
+            if (!withdrawn.Succeeded)
+            {
+                return withdrawn;
+            }
+
+            InventoryResult deposited = to.TryDeposit(good, quantity);
+            if (deposited.Succeeded)
+            {
+                return deposited;
+            }
+
+            InventoryResult restored = from.TryDeposit(good, quantity);
+            if (!restored.Succeeded)
+            {
+                throw new InvalidOperationException("调拨回滚失败，库存可能已不一致。");
+            }
+
+            return deposited;
+        }
+
         internal static bool IsKnown(Good good) => good is Good.Food or Good.Wood or Good.Tool;
     }
 }

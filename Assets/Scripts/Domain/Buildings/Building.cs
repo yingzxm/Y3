@@ -5,8 +5,8 @@ using System.Collections.Generic;
 namespace SocialEvolution.Domain
 {
     /// <summary>
-    /// 建筑。岗位只通过 <see cref="SetJobPosting"/> 设置编制，不接收市民。
-    /// 住宅的 <see cref="HousingResidentCapacity"/> 只是容量数字，没有入住名单。
+    /// 建筑。编制只能由 World 程序集里的 <see cref="SetJobPosting"/> 写入，调用方应走 WorldState。
+    /// 住宅容量是上限。住户记在市民的 ResidenceId 上，建筑不保存住户名单，也不保存雇员。
     /// </summary>
     public sealed class Building
     {
@@ -61,8 +61,14 @@ namespace SocialEvolution.Domain
 
         public IReadOnlyList<JobPosting> JobPostings => _jobPostings;
 
-        /// <summary>新增或按编号改写编制、时薪和门槛。不招人。</summary>
-        public JobPosting SetJobPosting(JobPostingId id, string title, int openings, int wagePerHour, int minSkillLevel)
+        /// <summary>新增或按编号改写编制。internal，仅供 WorldState 在校验编号后调用。不招人。</summary>
+        internal JobPosting SetJobPosting(
+            JobPostingId id,
+            string title,
+            int openings,
+            long wagePerHour,
+            int minSkillLevel,
+            string requiredSkillId)
         {
             if (id.Value <= 0)
             {
@@ -73,12 +79,12 @@ namespace SocialEvolution.Domain
             {
                 if (_jobPostings[i].Id == id)
                 {
-                    _jobPostings[i].Configure(title, openings, wagePerHour, minSkillLevel);
+                    _jobPostings[i].Configure(title, openings, wagePerHour, minSkillLevel, requiredSkillId);
                     return _jobPostings[i];
                 }
             }
 
-            JobPosting created = JobPosting.Create(id, Id, title, openings, wagePerHour, minSkillLevel);
+            JobPosting created = JobPosting.Create(id, Id, title, openings, wagePerHour, minSkillLevel, requiredSkillId);
             _jobPostings.Add(created);
             return created;
         }

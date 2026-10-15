@@ -52,13 +52,27 @@ namespace SocialEvolution.Bootstrap
         public const int MerchantOpenings = 4;
         public const int ClerkOpenings = 5;
 
+        public const long FarmerWage = 15L;
+        public const long FarmLeadWage = 25L;
+        public const long FactoryWorkerWage = 20L;
+        public const long MerchantWage = 18L;
+        public const long ClerkWage = 22L;
+
         public static WorldState Create()
         {
             var citizens = new Citizen[CitizenCount];
             for (int i = 0; i < CitizenCount; i++)
             {
                 int id = i + 1;
-                citizens[i] = new Citizen(new CitizenId(id), $"市民{id:000}");
+                citizens[i] = new Citizen(
+                    new CitizenId(id),
+                    "市民" + id.ToString("000"),
+                    AgeOf(i),
+                    EducationOf(i),
+                    SkillsOf(i),
+                    HealthFactorOf(i),
+                    WealthOf(i),
+                    ResidenceOf(i));
             }
 
             BuildingSite government = CreateSite(
@@ -111,13 +125,141 @@ namespace SocialEvolution.Bootstrap
                     HousingInventoryCapacity));
             }
 
-            farm.Building.SetJobPosting(new JobPostingId(FarmerPostingId), "农民", FarmerOpenings, 15, 0);
-            farm.Building.SetJobPosting(new JobPostingId(FarmLeadPostingId), "农场主管", FarmLeadOpenings, 25, 2);
-            factory.Building.SetJobPosting(new JobPostingId(FactoryWorkerPostingId), "工人", FactoryWorkerOpenings, 20, 1);
-            market.Building.SetJobPosting(new JobPostingId(MerchantPostingId), "商人", MerchantOpenings, 18, 1);
-            government.Building.SetJobPosting(new JobPostingId(ClerkPostingId), "公务员", ClerkOpenings, 22, 1);
+            WorldState world = new WorldState(citizens, sites, new Treasury(InitialTreasury));
+            world.SetJobPosting(farm.Id, new JobPostingId(FarmerPostingId), "农民", FarmerOpenings, FarmerWage, 0, SkillIds.Farming);
+            world.SetJobPosting(farm.Id, new JobPostingId(FarmLeadPostingId), "农场主管", FarmLeadOpenings, FarmLeadWage, 2, SkillIds.Farming);
+            world.SetJobPosting(factory.Id, new JobPostingId(FactoryWorkerPostingId), "工人", FactoryWorkerOpenings, FactoryWorkerWage, 1, SkillIds.Manufacturing);
+            world.SetJobPosting(market.Id, new JobPostingId(MerchantPostingId), "商人", MerchantOpenings, MerchantWage, 1, SkillIds.Trade);
+            world.SetJobPosting(government.Id, new JobPostingId(ClerkPostingId), "公务员", ClerkOpenings, ClerkWage, 1, SkillIds.Administration);
+            return world;
+        }
 
-            return new WorldState(citizens, sites, new Treasury(InitialTreasury));
+        /// <summary>下标 0–119 的年龄。20 名 6–15 岁，25 名 16–25 岁，40 名 26–45 岁，25 名 46–60 岁，10 名 61–70 岁。</summary>
+        public static int AgeOf(int index)
+        {
+            EnsureIndex(index);
+            if (index < 20)
+            {
+                return 6 + (index % 10);
+            }
+
+            if (index < 45)
+            {
+                return 16 + ((index - 20) % 10);
+            }
+
+            if (index < 85)
+            {
+                return 26 + ((index - 45) % 20);
+            }
+
+            if (index < 110)
+            {
+                return 46 + ((index - 85) % 15);
+            }
+
+            return 61 + ((index - 110) % 10);
+        }
+
+        public static EducationLevel EducationOf(int index)
+        {
+            int age = AgeOf(index);
+            if (age < 7)
+            {
+                return EducationLevel.None;
+            }
+
+            if (age < 13)
+            {
+                return EducationLevel.Primary;
+            }
+
+            if (age < 16)
+            {
+                return EducationLevel.Secondary;
+            }
+
+            switch (index % 10)
+            {
+                case 0:
+                    return EducationLevel.Higher;
+                case 1:
+                case 2:
+                    return EducationLevel.Vocational;
+                case 3:
+                case 4:
+                case 5:
+                    return EducationLevel.Secondary;
+                case 6:
+                case 7:
+                case 8:
+                    return EducationLevel.Primary;
+                default:
+                    return EducationLevel.None;
+            }
+        }
+
+        public static float HealthFactorOf(int index)
+        {
+            EnsureIndex(index);
+            return 0.85f + ((index % 5) * 0.05f);
+        }
+
+        public static long WealthOf(int index)
+        {
+            EnsureIndex(index);
+            return 80L + ((index * 47) % 2400);
+        }
+
+        public static BuildingId ResidenceOf(int index)
+        {
+            EnsureIndex(index);
+            return new BuildingId(FirstHousingBuildingId + (index / HousingResidentCapacity));
+        }
+
+        public static SkillLevel[] SkillsOf(int index)
+        {
+            if (AgeOf(index) < 16)
+            {
+                return Array.Empty<SkillLevel>();
+            }
+
+            string primary;
+            switch (index % 4)
+            {
+                case 0:
+                    primary = SkillIds.Farming;
+                    break;
+                case 1:
+                    primary = SkillIds.Manufacturing;
+                    break;
+                case 2:
+                    primary = SkillIds.Trade;
+                    break;
+                default:
+                    primary = SkillIds.Administration;
+                    break;
+            }
+
+            if (index % 7 != 0)
+            {
+                return new SkillLevel[] { new SkillLevel(primary, index % 5) };
+            }
+
+            string second = primary == SkillIds.Farming ? SkillIds.Trade : SkillIds.Farming;
+            return new SkillLevel[]
+            {
+                new SkillLevel(primary, index % 5),
+                new SkillLevel(second, 1),
+            };
+        }
+
+        private static void EnsureIndex(int index)
+        {
+            if (index < 0 || index >= CitizenCount)
+            {
+                throw new ArgumentOutOfRangeException(nameof(index), index, "市民下标必须在 0–119。");
+            }
         }
 
         private static BuildingSite CreateSite(

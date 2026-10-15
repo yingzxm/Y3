@@ -1,3 +1,6 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using SocialEvolution.Core;
 using Xunit;
 
@@ -9,6 +12,8 @@ namespace SocialEvolution.Tests
         public void DayIsTwentyFourHours()
         {
             Assert.Equal(24, GameDateTime.HoursPerDay);
+            Assert.Equal(0L, GameDateTime.Origin.TotalHours);
+            Assert.Equal(25L, GameDateTime.Origin.AddHours(25).TotalHours);
             Assert.Equal(new GameDateTime(1, 0), GameDateTime.Origin);
             Assert.Equal(new GameDateTime(1, 23), GameDateTime.Origin.AddHours(23));
             Assert.Equal(new GameDateTime(2, 0), GameDateTime.Origin.AddHours(24));
@@ -110,6 +115,19 @@ namespace SocialEvolution.Tests
             Assert.Equal(TimeScales.X20, time.TimeScale);
             Assert.Contains(TimeScales.X1, TimeScales.Presets);
             Assert.Contains(TimeScales.X5, TimeScales.Presets);
+        }
+
+        [Fact]
+        public void AdvanceRealtime_CapsHoursAndDropsTheBacklog()
+        {
+            var time = new TimeService(1f, TimeScales.X1, 3);
+            Assert.Equal(3, time.MaxHoursPerAdvance);
+            Assert.Equal(3, time.AdvanceRealtime(10f));
+            Assert.Equal(new GameDateTime(1, 3), time.Now);
+            Assert.Equal(3L, time.Now.TotalHours);
+            Assert.Equal(0, time.AdvanceRealtime(0f));
+            Assert.Equal(new GameDateTime(1, 3), time.Now);
+            Assert.Throws<ArgumentOutOfRangeException>(() => new TimeService(1f, TimeScales.X1, 0));
         }
 
         [Fact]
