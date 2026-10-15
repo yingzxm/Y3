@@ -41,13 +41,22 @@ namespace SocialEvolution.Tests
             Assert.True(NoEngine("World"));
             Assert.True(NoEngine("Labor"));
             Assert.True(NoEngine("Agents"));
+            Assert.True(NoEngine("Stats"));
             Assert.False(NoEngine("Bootstrap"));
 
             Assert.Empty(References("Domain"));
             Assert.Empty(References("Core"));
             Assert.Equal(new[] { "SocialEvolution.Domain" }, References("World"));
             Assert.Equal(
-                new[] { "SocialEvolution.Core", "SocialEvolution.Domain", "SocialEvolution.World" },
+                new[]
+                {
+                    "SocialEvolution.Core",
+                    "SocialEvolution.Domain",
+                    "SocialEvolution.World",
+                    "SocialEvolution.Labor",
+                    "SocialEvolution.Agents",
+                    "SocialEvolution.Stats",
+                },
                 References("Bootstrap"));
             Assert.Equal(
                 new[] { "SocialEvolution.Core", "SocialEvolution.Domain", "SocialEvolution.World" },
@@ -55,6 +64,16 @@ namespace SocialEvolution.Tests
             Assert.Equal(
                 new[] { "SocialEvolution.Core", "SocialEvolution.Domain", "SocialEvolution.Labor" },
                 References("Agents"));
+            Assert.Equal(
+                new[]
+                {
+                    "SocialEvolution.Core",
+                    "SocialEvolution.Domain",
+                    "SocialEvolution.World",
+                    "SocialEvolution.Labor",
+                    "SocialEvolution.Agents",
+                },
+                References("Stats"));
         }
 
         [Fact]
@@ -66,12 +85,21 @@ namespace SocialEvolution.Tests
             AssertNoEngine(Path.Combine(root, "Assets", "Scripts", "World"));
             AssertNoEngine(Path.Combine(root, "Assets", "Scripts", "Labor"));
             AssertNoEngineIfPresent(Path.Combine(root, "Assets", "Scripts", "Agents"));
+            AssertNoEngine(Path.Combine(root, "Assets", "Scripts", "Stats"));
             AssertNoEngineFile(Path.Combine(root, "Assets", "Scripts", "Bootstrap", "OpeningSeed.cs"));
             AssertNoEngineFile(Path.Combine(root, "Assets", "Scripts", "Bootstrap", "GameSession.cs"));
 
             string driver = File.ReadAllText(Path.Combine(root, "Assets", "Scripts", "Bootstrap", "Unity", "SimulationDriver.cs"));
             Assert.Contains("MonoBehaviour", driver, StringComparison.Ordinal);
             Assert.Contains("AdvanceRealtime", driver, StringComparison.Ordinal);
+
+            string panel = File.ReadAllText(Path.Combine(root, "Assets", "Scripts", "Bootstrap", "Unity", "StatsDebugPanel.cs"));
+            Assert.Contains("MonoBehaviour", panel, StringComparison.Ordinal);
+            Assert.Contains("OnGUI", panel, StringComparison.Ordinal);
+            Assert.Contains("SelectCitizen", panel, StringComparison.Ordinal);
+            Assert.Contains("TryGetThreeRecentLogs", panel, StringComparison.Ordinal);
+            Assert.Contains("DemoReadout.Attach", panel, StringComparison.Ordinal);
+            Assert.Contains("RecentLogs", panel, StringComparison.Ordinal);
         }
 
         [Fact]
@@ -233,6 +261,7 @@ namespace SocialEvolution.Tests
                 typeof(SocialEvolution.Bootstrap.GameSession).Assembly,
                 typeof(SocialEvolution.Labor.LaborMarket).Assembly,
                 typeof(SocialEvolution.Agents.AgentBrain).Assembly,
+                typeof(SocialEvolution.Stats.CityStatsReader).Assembly,
             };
         }
 

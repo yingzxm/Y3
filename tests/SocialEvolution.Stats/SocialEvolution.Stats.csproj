@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>9.0</LangVersion>
+    <AssemblyName>SocialEvolution.Stats</AssemblyName>
+    <RootNamespace>SocialEvolution.Stats</RootNamespace>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="..\..\Assets\Scripts\Stats\**\*.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\SocialEvolution.Core\SocialEvolution.Core.csproj" />
+    <ProjectReference Include="..\SocialEvolution.Domain\SocialEvolution.Domain.csproj" />
+    <ProjectReference Include="..\SocialEvolution.World\SocialEvolution.World.csproj" />
+    <ProjectReference Include="..\SocialEvolution.Labor\SocialEvolution.Labor.csproj" />
+    <ProjectReference Include="..\SocialEvolution.Agents\SocialEvolution.Agents.csproj" />
+  </ItemGroup>
+</Project>

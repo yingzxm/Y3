@@ -38,6 +38,8 @@ agents.Register(session.Time);
 
 直接跑逻辑、不进场景时，用 `session.Time.StepHours`。它不受暂停和倍率影响，每个游戏时仍会进 `OnGameHour`。
 
+`OnGameHour` 每执行一个行动，就给这位市民的 `CitizenActionLog` 追加一行。求职、辞职、上班、进食、睡眠、购物、闲置都会记。同一小时每人只有一行。默认留下最近 8 行，至少 3 行。点选和面板见 [stats.md](stats.md)。
+
 如果同时还注册了 `LaborHourDriver`，不要为同一个人再 `RequestApply` / `RequestQuit`。Agents 自己会调用 `TryApply` 和 `TryQuit`。重复投递只会得到 `RejectedAlreadyEmployed`，或者把刚入职的人又辞掉。
 
 求职权重从 `AgentBrain` 的构造函数注入 `JobSeekScoreWeights`。不传时用 `DemoDefaults`。

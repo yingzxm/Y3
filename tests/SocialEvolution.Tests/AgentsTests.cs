@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
 using SocialEvolution.Agents;
@@ -303,6 +304,10 @@ namespace SocialEvolution.Tests
             JobEmployment? employment;
             Assert.True(market.TryGetEmployment(joiner.Id, out employment));
             Assert.Equal(new GameDateTime(1, 1), employment!.HiredAt);
+            Assert.Equal(1, driver.Log.Count(leaver.Id));
+            Assert.Equal(1, driver.Log.Count(joiner.Id));
+            Assert.Equal(AgentAction.Quit, driver.Log.GetRecent(leaver.Id)[0].Action);
+            Assert.Equal(AgentAction.SeekJob, driver.Log.GetRecent(joiner.Id)[0].Action);
         }
 
         [Fact]
@@ -364,11 +369,80 @@ namespace SocialEvolution.Tests
             var brain = new AgentBrain(person, market);
             Assert.Throws<ArgumentNullException>(() => brain.BindPerson(null!));
             Assert.Throws<ArgumentNullException>(() => new AgentsHourDriver(null!));
+            Assert.Throws<ArgumentNullException>(() => new AgentsHourDriver(Array.Empty<AgentBrain>(), null!));
             var driver = new AgentsHourDriver();
             Assert.Throws<ArgumentNullException>(() => driver.Add(null!));
             Assert.Throws<ArgumentNullException>(() => driver.Register(null!));
             Assert.Throws<ArgumentNullException>(() => driver.Unregister(null!));
             Assert.Throws<ArgumentNullException>(() => driver.SeekContext = null!);
+        }
+
+        [Fact]
+        public void HourDriver_WritesEachActionIntoTheCitizenLog()
+        {
+            Citizen person = CitizenOf(4);
+            WorldState world = WorldOf(person);
+            var market = new LaborMarket(world);
+            var script = new FixedDecision();
+            var brain = new AgentBrain(person, market, script);
+            var time = new TimeService();
+            var driver = new AgentsHourDriver(new[] { brain });
+            driver.Register(time);
+
+            AgentAction[] actions =
+            {
+                AgentAction.SeekJob,
+                AgentAction.Quit,
+                AgentAction.Work,
+                AgentAction.Eat,
+                AgentAction.Sleep,
+                AgentAction.Shop,
+                AgentAction.Idle,
+            };
+            for (int i = 0; i < actions.Length; i++)
+            {
+                script.Next = actions[i];
+                time.StepHours(1);
+            }
+
+            IReadOnlyList<CitizenLogLine> lines = driver.Log.GetRecent(person.Id);
+            Assert.Equal(actions.Length, lines.Count);
+            Assert.True(lines.Count >= 3);
+            for (int i = 0; i < actions.Length; i++)
+            {
+                Assert.Equal(actions[i], lines[i].Action);
+                Assert.Equal(person.Id, lines[i].CitizenId);
+                Assert.Equal(i + 1, lines[i].When.Hour);
+                Assert.Equal(CitizenLogText.Format(lines[i].When, actions[i]), lines[i].Text);
+            }
+
+            Assert.Equal("D1 01:00 求职", lines[0].Text);
+            Assert.Equal("D1 07:00 闲置", lines[6].Text);
+            Assert.Equal(0, driver.Log.Count(new CitizenId(99)));
+        }
+
+        [Fact]
+        public void CitizenLog_KeepsAtLeastThreeNewestLines()
+        {
+            Citizen person = CitizenOf(4);
+            WorldState world = WorldOf(person);
+            var market = new LaborMarket(world);
+            var script = new FixedDecision { Next = AgentAction.Idle };
+            var brain = new AgentBrain(person, market, script);
+            var log = new CitizenActionLog(CitizenActionLog.MinimumCapacity);
+            var driver = new AgentsHourDriver(new[] { brain }, log);
+            var time = new TimeService();
+            driver.Register(time);
+            time.StepHours(4);
+
+            IReadOnlyList<CitizenLogLine> lines = log.GetRecent(person.Id);
+            Assert.Equal(3, lines.Count);
+            Assert.Equal(2, lines[0].When.Hour);
+            Assert.Equal(4, lines[2].When.Hour);
+            Assert.Equal("D1 02:00 闲置", lines[0].Text);
+            Assert.Equal("D1 04:00 闲置", lines[2].Text);
+            Assert.Throws<ArgumentOutOfRangeException>(() => new CitizenActionLog(2));
+            Assert.Throws<ArgumentException>(() => log.Append(person.Id, new GameDateTime(1, 5), AgentAction.Idle, " "));
         }
 
         [Fact]
