@@ -160,6 +160,128 @@ public sealed class Building
 
 `Building.SetJobPosting` 是 internal，`InternalsVisibleTo("SocialEvolution.World")`。外部改编制走 `WorldState.SetJobPosting`。`Openings` 只是编制人数。在职人数不在 Domain。货币字段（金库、工资、个人财富）都是 `long`。
 
+## 劳动力
+
+程序集 `SocialEvolution.Labor`（`noEngineReferences: true`，C# 9），引用 Core、Domain、World。`JobPosting` 包装 Domain 编制：`Openings`、`WagePerHour`（`long`）、`RequiredSkillId`、`MinSkillLevel` 都读 Domain。工时、强度、班次、学历和年龄在 `JobConditions`，以 `JobPostingId` 为键。`FilledCount` 和雇佣记录只在 Labor。Domain 岗位没有 `VacantSlots`。
+
+`GetVacantSlots` = max(0, 编制 − 在职)。门槛不够不占坑：编制 N、只有 M 名合格者应聘时，录用 M，空缺为 N−M。技能看 `IPersonReadModel.Skills` 里 `RequiredSkillId` 的等级，没有这项技能视为 0。标识只用 `SkillIds`。
+
+招聘只有申请人 `TryApply`（合格且有空缺则当场入职）。没有雇主申请池，也没有同时接收市民和岗位并强制入职的派工 API。一个人同时只做一份工作，已入职再申请得到 `RejectedAlreadyEmployed`。辞职用 `TryQuit`，空缺回升。
+
+求职评分是 `IJobSeekScorer` / `SimpleJobSeekScorer`。权重只来自注入的 `JobSeekScoreWeights`（`DemoDefaults` 为占位）。正式数值从 JSON 或 ScriptableObject 填进这个类型；本程序集不引用引擎。
+
+求职和辞职若跟着时钟走，用 `LaborHourDriver.Register` 挂到 `ISimStepHooks.RegisterGameHour`（`ITimeService` 的小时钩子），每个游戏时一轮：先辞职，再求职。不按帧。`SimNoOp` 仍是空的，`GameSession.CreateNew` 不自动招聘。入职时间用 `GameDateTime`。
+
+```csharp
+public sealed class JobConditions
+{
+    public JobConditions(
+        JobPostingId postingId,
+        float workHours,
+        float workIntensity,
+        WorkShift shift,
+        EducationLevel minEducation = EducationLevel.None,
+        int minAge = 0,
+        int? maxAge = null,
+        int priority = 0);
+    public JobPostingId PostingId { get; }
+    public float WorkHours { get; }
+    public float WorkIntensity { get; }
+    public WorkShift Shift { get; }
+    public EducationLevel MinEducation { get; }
+    public int MinAge { get; }
+    public int? MaxAge { get; }
+    public int Priority { get; }
+}
+
+public enum WorkShift { Day = 0, Evening = 1, Night = 2, Flexible = 3 }
+
+public sealed class JobPosting
+{
+    public JobPosting(Domain.JobPosting source, JobConditions conditions);
+    public int Openings { get; }
+    public long WagePerHour { get; }
+    public string RequiredSkillId { get; }
+    public int MinSkillLevel { get; }
+    public float WorkHours { get; }
+    public float WorkIntensity { get; }
+    public WorkShift Shift { get; }
+    public bool IsEligible(IPersonReadModel person);
+}
+
+public interface ILaborMarket
+{
+    void SetConditions(JobConditions conditions);
+    bool TryGetPosting(JobPostingId postingId, out JobPosting? posting);
+    IReadOnlyList<JobPosting> GetPostings();
+    IReadOnlyList<JobPosting> GetOpenPostings();
+    int GetFilledCount(JobPostingId postingId);
+    int GetVacantSlots(JobPostingId postingId);
+    IReadOnlyList<JobEmployment> GetEmployments(JobPostingId postingId);
+    bool TryGetEmployment(CitizenId citizenId, out JobEmployment? employment);
+    LaborApplyResult TryApply(IPersonReadModel applicant, JobPostingId postingId, GameDateTime now);
+    bool TryQuit(IPersonReadModel applicant);
+}
+
+public enum LaborApplyResult
+{
+    Hired = 0,
+    RejectedIneligible = 1,
+    RejectedNoVacancy = 2,
+    RejectedAlreadyEmployed = 3,
+    PostingNotFound = 4,
+}
+
+public interface IJobSeekScorer
+{
+    float Score(IPersonReadModel person, JobPosting posting, JobSeekContext context);
+}
+
+public sealed class SimpleJobSeekScorer : IJobSeekScorer
+{
+    public SimpleJobSeekScorer(JobSeekScoreWeights weights);
+}
+
+public sealed class JobSeekScoreWeights
+{
+    public float Wage { get; set; }
+    public float HoursPenalty { get; set; }
+    public float CommutePenalty { get; set; }
+    public float IntensityPenalty { get; set; }
+    public float Safety { get; set; }
+    public float Development { get; set; }
+    public float Status { get; set; }
+    public float SkillMatch { get; set; }
+    public float Stability { get; set; }
+    public float FullSkillMatch { get; set; }
+    public static JobSeekScoreWeights DemoDefaults { get; }
+}
+
+public static class FatigueFormula
+{
+    // Fatigue + WorkHours × WorkIntensity × HealthFactor − Recovery
+    public static float Compute(float currentFatigue, float workHours, float workIntensity, float healthFactor, float recovery);
+}
+
+public sealed class JobSeeker
+{
+    public JobSeeker(ILaborMarket market, IJobSeekScorer scorer);
+    public LaborApplyResult TrySeekBest(IPersonReadModel person, GameDateTime now, JobSeekContext context, out JobPostingId? chosenPostingId);
+}
+
+public sealed class LaborHourDriver
+{
+    public LaborHourDriver(ILaborMarket market, IJobSeekScorer scorer);
+    public void RequestApply(IPersonReadModel person, JobSeekContext context);
+    public void RequestQuit(IPersonReadModel person);
+    public void OnGameHour(GameDateTime now);
+    public void Register(ISimStepHooks hooks);
+    public void Unregister(ISimStepHooks hooks);
+}
+```
+
+撤下编制后，下一次劳动查询会放开仍记在该岗位上的人。编制改到低于在职人数时，空缺为 0，已在职的人不被赶走。
+
 ## 世界与种子
 
 ```csharp
