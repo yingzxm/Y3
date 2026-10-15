@@ -2,7 +2,9 @@
 
 Unity 6.3 LTS，团队统一使用 **6000.3.26f1**（changeset `de8167e7440c`）。请用 Unity Hub 安装这一 patch，不要换别的 6000.3 版本。版本锁在 `ProjectSettings/ProjectVersion.txt`。
 
-这是 P0-1～P0-3：能推进时钟，有开局种子，建筑能入出库。没有招聘撮合、市场结算、发薪、生产，也没有数值 Utility 的决策循环。
+这是 P0-1～P0-3 加上 P0-6 市场：能推进时钟，有开局种子，建筑能入出库，国企能生产和买卖，政府能在 Play 里买卖并看到中间价。没有招聘撮合、发薪，也没有数值 Utility 的决策循环。设岗、建设和财政面板属于 P0-7。
+
+本地工程根目录约定为 `A:\UnityProject\Gap`。
 
 ## 目录
 
@@ -10,13 +12,14 @@ Unity 6.3 LTS，团队统一使用 **6000.3.26f1**（changeset `de8167e7440c`）
 Assets/Scripts/Core/        时钟与步进钩子（不引用引擎）
 Assets/Scripts/Domain/      市民、建筑、岗位、商品、金库（不引用引擎）
 Assets/Scripts/World/       建筑工地与库存（不引用引擎）
-Assets/Scripts/Bootstrap/   开局种子、GameSession、Unity 帧驱动
+Assets/Scripts/Economy/     生产、中间价、买卖（不引用引擎）
+Assets/Scripts/Bootstrap/   开局种子、GameSession、Unity 帧驱动和市场面板
 Assets/Scenes/Bootstrap.unity
 docs/                       接口签名与开局种子
 tests/                      纯 C# 回归，不进 Unity 导入
 ```
 
-`Domain`、`Core`、`World` 的 asmdef 设置了 `noEngineReferences: true`。只有 `Bootstrap` 引用 Unity，而且引擎代码只在 `Bootstrap/Unity/SimulationDriver.cs`。
+`Domain`、`Core`、`World`、`Economy` 的 asmdef 设置了 `noEngineReferences: true`。只有 `Bootstrap` 引用 Unity，引擎代码在 `Bootstrap/Unity/SimulationDriver.cs` 和 `MarketDebugPanel.cs`。
 
 ## 用编辑器推进时钟
 
@@ -28,9 +31,9 @@ tests/                      纯 C# 回归，不进 Unity 导入
 6. 暂停：`driver.Pause()`。恢复：`driver.Resume()`。暂停期间倍率保持不变。
 7. 五倍速：`driver.SetTimeScale(TimeScales.X5)`。也接受 20、100、1000 和任意有限正数。`0` 不是倍率，暂停用 `Pause()`。
 
-场景没有相机，Game 视图是空的。这局里只有时钟在走。
+Play 之后，Game 视图左上角是市场面板（日/时、暂停、1x/5x、三种中间价、库存、金库、政府买卖）。步骤写在 [docs/interfaces.md](docs/interfaces.md) 的「Play 验证」。面板挂在 `Simulation` 上，和 `SimulationDriver` 在一起。没有相机时，面板会自己补一个纯色相机。
 
-若场景在导入时提示缺脚本，确认 `SimulationDriver.cs.meta` 的 guid 是 `e7c4a1b25d6f4e0a9c3b5d7e1f2a4b6c`。也可以新建空场景，加一个空物体，挂上 `SimulationDriver`，再 Play。
+若场景在导入时提示缺脚本，确认 `SimulationDriver.cs.meta` 的 guid 是 `e7c4a1b25d6f4e0a9c3b5d7e1f2a4b6c`，`MarketDebugPanel.cs.meta` 的 guid 是 `7a3011a1749b439bb4f847ad6830e6af`。也可以新建空场景，加一个空物体，同时挂上这两个组件，再 Play。
 
 ## 不打开 Unity 时推进时钟
 
@@ -38,17 +41,19 @@ tests/                      纯 C# 回归，不进 Unity 导入
 dotnet test tests/SocialEvolution.Tests/SocialEvolution.Tests.csproj
 ```
 
-测试工程把 `Assets/Scripts` 里的纯 C# 编成四个程序集（不含 `SimulationDriver`）。播放模式的推进对应 `AdvanceRealtime`；测试和脚本用 `StepHours`，它不受暂停和倍率影响。
+测试工程把 `Assets/Scripts` 里的纯 C# 编成五个程序集（不含 `SimulationDriver` 和 `MarketDebugPanel`）。播放模式的推进对应 `AdvanceRealtime`；测试和脚本用 `StepHours`，它不受暂停和倍率影响。
 
 ```csharp
-GameSession session = GameSession.CreateNew(); // 第 1 日 0 时，已挂空的小时/日回调
-session.Time.StepHours(24);                    // 进入第 2 日 0 时；先小时回调，跨日后再日回调
+GameSession session = GameSession.CreateNew(); // 第 1 日 0 时，已挂市场小时钩子
+session.Time.StepHours(24);                    // 每小时生产、卖出超额产出并结算中间价
 session.Time.SetTimeScale(TimeScales.X5);
 session.Time.AdvanceRealtime(1f);              // 1x 下 1 秒 = 1 游戏时，5x 下这 1 秒走 5 游戏时
 session.Time.Pause();                          // 之后 AdvanceRealtime 不再走字
 ```
 
 回调里不能再调用 `StepHours` / `AdvanceRealtime`（禁止重入）。开局时刻本身不触发回调。
+
+`GameSession.CreateNew()` 会把 `CityMarket.OnGameHour` 注册到小时钩子。每进入一个新游戏时：农场产出食物和木材，工厂消耗木材产出工具，超出储备的产出卖进集市，然后结算中间价。政府厅库存和金库不会被这个钩子自动改掉；政府买卖要显式调用 `TryGovernmentBuy` / `TryGovernmentSell`。金库可以为负，游戏继续。
 
 ## 开局种子
 
@@ -132,4 +137,4 @@ public static class Inventory
 
 ## 本里程碑不做
 
-招聘撮合、离职、发薪、生产配方、市场订单、价格、税收、移民、存档、Utility 评分、聊天。小时和日回调的默认实现是 `SimNoOp`，推进时钟不会改金库、库存、人口或空岗。
+招聘撮合、离职、发薪、税收、移民、存档、Utility 评分、聊天、政府建设/设岗 UI。`SimNoOp` 仍是空回调。市场另挂在小时钩子上：推进时钟会改农场、工厂和集市库存以及中间价，不会改人口、编制、政府厅库存或金库，除非调用政府买卖。

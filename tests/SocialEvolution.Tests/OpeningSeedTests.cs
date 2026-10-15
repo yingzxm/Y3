@@ -4,6 +4,7 @@ using System.Reflection;
 using SocialEvolution.Bootstrap;
 using SocialEvolution.Core;
 using SocialEvolution.Domain;
+using SocialEvolution.Economy;
 using SocialEvolution.World;
 using Xunit;
 
@@ -118,7 +119,7 @@ namespace SocialEvolution.Tests
         }
 
         [Fact]
-        public void SteppingTheClock_DoesNotRunEconomy()
+        public void SteppingTheClock_RunsTheMarketWithoutTouchingTreasury()
         {
             GameSession session = GameSession.CreateNew();
             long balance = session.World.Treasury.Balance;
@@ -146,6 +147,7 @@ namespace SocialEvolution.Tests
 
             Assert.Equal(balance, session.World.Treasury.Balance);
             Assert.Equal(food, session.World.GetQuantity(new BuildingId(OpeningSeed.GovernmentBuildingId), Good.Food));
+            Assert.Equal(53 * StateProduction.FarmFoodPerHour, session.World.GetQuantity(new BuildingId(OpeningSeed.MarketBuildingId), Good.Food));
             Assert.Equal(citizens, session.World.Citizens.Count);
             for (int i = 0; i < citizens; i++)
             {

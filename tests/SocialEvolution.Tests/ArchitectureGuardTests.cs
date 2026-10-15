@@ -39,13 +39,17 @@ namespace SocialEvolution.Tests
             Assert.True(NoEngine("Core"));
             Assert.True(NoEngine("Domain"));
             Assert.True(NoEngine("World"));
+            Assert.True(NoEngine("Economy"));
             Assert.False(NoEngine("Bootstrap"));
 
             Assert.Empty(References("Domain"));
             Assert.Empty(References("Core"));
             Assert.Equal(new[] { "SocialEvolution.Domain" }, References("World"));
             Assert.Equal(
-                new[] { "SocialEvolution.Core", "SocialEvolution.Domain", "SocialEvolution.World" },
+                new[] { "SocialEvolution.Domain", "SocialEvolution.World", "SocialEvolution.Core" },
+                References("Economy"));
+            Assert.Equal(
+                new[] { "SocialEvolution.Core", "SocialEvolution.Domain", "SocialEvolution.World", "SocialEvolution.Economy" },
                 References("Bootstrap"));
         }
 
@@ -56,12 +60,20 @@ namespace SocialEvolution.Tests
             AssertNoEngine(Path.Combine(root, "Assets", "Scripts", "Core"));
             AssertNoEngine(Path.Combine(root, "Assets", "Scripts", "Domain"));
             AssertNoEngine(Path.Combine(root, "Assets", "Scripts", "World"));
+            AssertNoEngine(Path.Combine(root, "Assets", "Scripts", "Economy"));
             AssertNoEngineFile(Path.Combine(root, "Assets", "Scripts", "Bootstrap", "OpeningSeed.cs"));
             AssertNoEngineFile(Path.Combine(root, "Assets", "Scripts", "Bootstrap", "GameSession.cs"));
 
             string driver = File.ReadAllText(Path.Combine(root, "Assets", "Scripts", "Bootstrap", "Unity", "SimulationDriver.cs"));
             Assert.Contains("MonoBehaviour", driver, StringComparison.Ordinal);
             Assert.Contains("AdvanceRealtime", driver, StringComparison.Ordinal);
+
+            string panel = File.ReadAllText(Path.Combine(root, "Assets", "Scripts", "Bootstrap", "Unity", "MarketDebugPanel.cs"));
+            Assert.Contains("OnGUI", panel, StringComparison.Ordinal);
+            Assert.Contains("TryGovernmentBuy", panel, StringComparison.Ordinal);
+            Assert.Contains("TryGovernmentSell", panel, StringComparison.Ordinal);
+            string scene = File.ReadAllText(Path.Combine(root, "Assets", "Scenes", "Bootstrap.unity"));
+            Assert.Contains("MarketDebugPanel", scene, StringComparison.Ordinal);
         }
 
         [Fact]
@@ -188,6 +200,7 @@ namespace SocialEvolution.Tests
                 typeof(SocialEvolution.Core.TimeService).Assembly,
                 typeof(Citizen).Assembly,
                 typeof(WorldState).Assembly,
+                typeof(SocialEvolution.Economy.CityMarket).Assembly,
                 typeof(SocialEvolution.Bootstrap.GameSession).Assembly,
             };
         }

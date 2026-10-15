@@ -4,7 +4,8 @@
   "references": [
     "SocialEvolution.Core",
     "SocialEvolution.Domain",
-    "SocialEvolution.World"
+    "SocialEvolution.World",
+    "SocialEvolution.Economy"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],

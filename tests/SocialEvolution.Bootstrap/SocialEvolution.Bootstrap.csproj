@@ -15,5 +15,6 @@
     <ProjectReference Include="..\SocialEvolution.Core\SocialEvolution.Core.csproj" />
     <ProjectReference Include="..\SocialEvolution.Domain\SocialEvolution.Domain.csproj" />
     <ProjectReference Include="..\SocialEvolution.World\SocialEvolution.World.csproj" />
+    <ProjectReference Include="..\SocialEvolution.Economy\SocialEvolution.Economy.csproj" />
   </ItemGroup>
 </Project>
