@@ -48,6 +48,26 @@ bool ready = readout.TryGetThreeRecentLogs(out string first, out string second, 
 
 `Attach` 会做三件事：给每个编制登记 8 小时白班（不改编制人数）、为每位市民建 `AgentBrain`、把 `AgentsHourDriver` 注册到时钟。每个游戏时，驱动把实际执行的行动写进 `CitizenActionLog`：求职、辞职、上班、进食、睡眠、购物、闲置。同一小时每人一行。`GameSession.CreateNew` 自己不会注册驱动；拆掉面板之后 Play 只走时钟。
 
+## 个人详情（CitizenDetailPanel）
+
+场景里的详情面板是预放的。代码不生成界面，也不做地图点击。点选仍然用 `CitizenPicker.Select` / `DemoReadout.Select` / `StatsDebugPanel.SelectCitizen`。选中之后读 `CitizenView`：
+
+```csharp
+bool found = readout.TryGetSelected(out CitizenView view);
+// 或未经过点选：picker.TryRead(new CitizenId(12), out view);
+```
+
+| 面板 | 属性 |
+|---|---|
+| 姓名 | `CitizenView.Name` |
+| 职业/岗位 | `CitizenView.JobTitle`（在职时薪 `WagePerHour`） |
+| 现金 | `CitizenView.Cash` |
+| 住所 | `CitizenView.ResidenceLabel`（建筑名；没有名字时用 `ResidenceId`） |
+| 需求 Top3 | `Need1` / `Need2` / `Need3`（`CitizenNeedSlot.Kind`、`Label`、`Urgency`） |
+| 心理 P | `CitizenView.PsychologyP`，等于 `WorkDrive` |
+
+另外三个标量是 `RiskPreference`、`WorkDrive`、`SavingTendency`。没有 `AgentBrain` 时 `HasPsychology` 为 false，`PsychologyP` 为 0，三个需求槽的 `Present` 为 false。学历是 `Education` / `EducationLabel`。在职且岗位还在时 `HasWorkplace` 为 true，`WorkplaceId` 是岗位所在建筑。工时仍是 `JobConditions.WorkHours` 加 `WorkShift`，没有 `StartHour` / `EndHour`。
+
 ## 中间价改成市场现价
 
 市场程序集进来之后，不要改统计的签名，只要每次读取时填 `MidPrice`：

@@ -177,9 +177,19 @@ namespace SocialEvolution.Tests
             Assert.True(picker.TryGetSelected(out view));
             Assert.Equal(first.Id, view.Id);
             Assert.False(view.HasTopNeed);
+            Assert.True(view.Need1.Present);
+            Assert.Equal(NeedKind.Hunger, view.Need1.Kind);
+            Assert.Equal(0f, view.Need1.Urgency);
+            Assert.True(view.HasPsychology);
+            Assert.Equal(0.5f, view.PsychologyP);
+            Assert.Equal(view.WorkDrive, view.PsychologyP);
             Assert.True(picker.SelectPrevious());
             Assert.True(picker.TryGetSelected(out view));
             Assert.Equal(second.Id, view.Id);
+            Assert.False(view.HasPsychology);
+            Assert.Equal(0f, view.PsychologyP);
+            Assert.False(view.Need1.Present);
+            Assert.Equal(string.Empty, view.Need1.Label);
             Assert.True(picker.SelectNext());
             Assert.True(picker.TryGetSelected(out view));
             Assert.Equal(first.Id, view.Id);
@@ -240,6 +250,106 @@ namespace SocialEvolution.Tests
             Assert.False(readout.Select(new CitizenId(999)));
             Assert.True(readout.TryGetSelected(out selected));
             Assert.Equal(1, selected.Id.Value);
+        }
+
+        [Fact]
+        public void Picker_Detail_EmployedAndUnemployed()
+        {
+            Citizen hired = Person(1, 80L);
+            Citizen idle = Person(2, 20L);
+            WorldState world = WorldOf(hired, idle);
+            var farm = new JobPostingId(1);
+            world.SetJobPosting(FarmId, farm, "农民", 1, 15L, 0, SkillIds.Farming);
+            var labor = new LaborMarket(world);
+            labor.SetConditions(new JobConditions(farm, 8f, 1f, WorkShift.Day));
+            Assert.Equal(LaborApplyResult.Hired, labor.TryApply(hired, farm, GameDateTime.Origin));
+
+            var hiredNeeds = new AgentNeeds
+            {
+                HungerSatisfaction = 0.5f,
+                FatigueSatisfaction = 0.25f,
+                WealthSatisfaction = 0.25f,
+                SafetySatisfaction = 0.75f,
+            };
+            var hiredBrain = new AgentBrain(hired, labor, needs: hiredNeeds);
+            hiredBrain.Personality.RiskPreference = 0.15f;
+            hiredBrain.Personality.WorkDrive = 0.7f;
+            hiredBrain.Personality.SavingTendency = 0.35f;
+
+            var idleNeeds = new AgentNeeds
+            {
+                HungerSatisfaction = 0.5f,
+                FatigueSatisfaction = 1f,
+                WealthSatisfaction = 0.75f,
+                SafetySatisfaction = 0f,
+            };
+            var idleBrain = new AgentBrain(idle, labor, needs: idleNeeds);
+            idleBrain.Personality.RiskPreference = 0.9f;
+            idleBrain.Personality.WorkDrive = 0.2f;
+            idleBrain.Personality.SavingTendency = 0.6f;
+
+            var driver = new AgentsHourDriver(new[] { hiredBrain, idleBrain });
+            var picker = new CitizenPicker(world, labor, driver);
+
+            CitizenView missing;
+            Assert.False(picker.TryRead(new CitizenId(99), out missing));
+            Assert.False(missing.Need1.Present);
+
+            Assert.True(picker.Select(hired.Id));
+            Assert.Equal(hired.Id, picker.SelectedId);
+            CitizenView employed;
+            Assert.True(picker.TryGetSelected(out employed));
+            CitizenView employedAgain;
+            Assert.True(picker.TryRead(hired.Id, out employedAgain));
+            Assert.Equal(employed.Name, employedAgain.Name);
+            Assert.Equal("市民001", employed.Name);
+            Assert.Equal(80L, employed.Cash);
+            Assert.True(employed.Employed);
+            Assert.Equal("农民", employed.JobTitle);
+            Assert.Equal(15L, employed.WagePerHour);
+            Assert.Equal(HomeId, employed.ResidenceId);
+            Assert.Equal("公共住宅", employed.ResidenceLabel);
+            Assert.Equal(EducationLevel.Secondary, employed.Education);
+            Assert.Equal("中学", employed.EducationLabel);
+            Assert.True(employed.HasWorkplace);
+            Assert.Equal(FarmId, employed.WorkplaceId);
+            Assert.Equal(NeedKind.Fatigue, employed.Need1.Kind);
+            Assert.Equal(0.75f, employed.Need1.Urgency);
+            Assert.Equal("疲劳", employed.Need1.Label);
+            Assert.Equal(NeedKind.Wealth, employed.Need2.Kind);
+            Assert.Equal(0.75f, employed.Need2.Urgency);
+            Assert.Equal(NeedKind.Hunger, employed.Need3.Kind);
+            Assert.Equal(0.5f, employed.Need3.Urgency);
+            Assert.Equal(NeedKind.Fatigue, employed.TopNeed);
+            Assert.True(employed.HasTopNeed);
+            Assert.True(employed.HasPsychology);
+            Assert.Equal(0.15f, employed.RiskPreference);
+            Assert.Equal(0.7f, employed.WorkDrive);
+            Assert.Equal(0.35f, employed.SavingTendency);
+            Assert.Equal(employed.WorkDrive, employed.PsychologyP);
+
+            CitizenView unemployed;
+            Assert.True(picker.TryRead(idle.Id, out unemployed));
+            Assert.Equal("市民002", unemployed.Name);
+            Assert.Equal(20L, unemployed.Cash);
+            Assert.False(unemployed.Employed);
+            Assert.Equal(string.Empty, unemployed.JobTitle);
+            Assert.Equal(0L, unemployed.WagePerHour);
+            Assert.False(unemployed.HasWorkplace);
+            Assert.Equal(0, unemployed.WorkplaceId.Value);
+            Assert.Equal(HomeId, unemployed.ResidenceId);
+            Assert.Equal("公共住宅", unemployed.ResidenceLabel);
+            Assert.Equal(EducationLevel.Secondary, unemployed.Education);
+            Assert.Equal(NeedKind.Safety, unemployed.Need1.Kind);
+            Assert.Equal(1f, unemployed.Need1.Urgency);
+            Assert.Equal("安全", unemployed.Need1.Label);
+            Assert.Equal(NeedKind.Hunger, unemployed.Need2.Kind);
+            Assert.Equal(NeedKind.Wealth, unemployed.Need3.Kind);
+            Assert.Equal(0.25f, unemployed.Need3.Urgency);
+            Assert.True(unemployed.HasPsychology);
+            Assert.Equal(0.2f, unemployed.PsychologyP);
+            Assert.Equal(0.9f, unemployed.RiskPreference);
+            Assert.Equal(0.6f, unemployed.SavingTendency);
         }
 
         private static Citizen Person(int id, long wealth)
