@@ -6,10 +6,8 @@ namespace SocialEvolution.Bootstrap
 {
     /// <summary>
     /// 把 Unity 帧时间送进 <see cref="ITimeService"/>。播放模式才会走 <see cref="Update"/>。
-    /// 代理人不在这里每帧决策。统计和点选由同一物体上的 <see cref="StatsDebugPanel"/>
-    /// 在 <c>Start</c> 里把 AgentsHourDriver 注册到 <see cref="GameSession.Time"/>，
-    /// 并调用 <see cref="CitizenMapPoseAutoAttach"/> 把地图姿态写到
-    /// <see cref="CitizenMapVisualController.PoseSource"/>。见 docs/agents.md。
+    /// 代理人不在这里每帧决策。统计面板若在，会在 <c>Start</c> 里确保小时驱动。
+    /// 地图姿态由 <see cref="CitizenMapPoseHook"/> 发布，不依赖面板是否在场景里。见 docs/agents.md。
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class SimulationDriver : MonoBehaviour

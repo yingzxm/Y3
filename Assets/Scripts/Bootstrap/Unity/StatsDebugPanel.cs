@@ -29,7 +29,7 @@ namespace SocialEvolution.Bootstrap
                 return;
             }
 
-            Readout = DemoReadout.Attach(driver.Session.Time, driver.Session.World);
+            Readout = driver.Session.EnsureReadout();
             CitizenMapPoseAutoAttach.Apply(driver.Session, Readout.Agents);
             _idText = "1";
         }

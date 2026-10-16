@@ -5,6 +5,7 @@ using SocialEvolution.Bootstrap;
 using SocialEvolution.Core;
 using SocialEvolution.Domain;
 using SocialEvolution.Labor;
+using SocialEvolution.Stats;
 using SocialEvolution.World;
 using Xunit;
 
@@ -71,19 +72,32 @@ namespace SocialEvolution.Tests
             Assert.Equal(20, poses[119].CellY);
             Assert.InRange(PersonMapCells.CityCenterX, minX, maxX);
             Assert.InRange(PersonMapCells.CityCenterY, minY, maxY);
+            Assert.InRange(minX, 0, DemoMapCellSpace.MapWidth - 1);
+            Assert.InRange(maxX, 0, DemoMapCellSpace.MapWidth - 1);
+            Assert.InRange(minY, 0, DemoMapCellSpace.MapHeight - 1);
+            Assert.InRange(maxY, 0, DemoMapCellSpace.MapHeight - 1);
 
             float worldX;
             float worldY;
             float worldZ;
+            DemoMapCellSpace.ToWorld(0, 0, out worldX, out worldY, out worldZ);
+            Assert.Equal(-19.5f, worldX);
+            Assert.Equal(-11.5f, worldY);
+            Assert.Equal(0f, worldZ);
             DemoMapCellSpace.ToWorld(poses[0].CellX, poses[0].CellY, out worldX, out worldY, out worldZ);
-            Assert.Equal(10.5f, worldX);
-            Assert.Equal(0f, worldY);
-            Assert.Equal(11.5f, worldZ);
+            Assert.Equal(poses[0].CellX - 19.5f, worldX);
+            Assert.Equal(poses[0].CellY - 11.5f, worldY);
+            Assert.Equal(-9.5f, worldX);
+            Assert.Equal(-0.5f, worldY);
+            Assert.Equal(0f, worldZ);
             DemoMapCellSpace.ToWorld(21, 20, out worldX, out worldY, out worldZ);
-            Assert.Equal(21.5f, worldX);
-            Assert.Equal(0f, worldY);
-            Assert.Equal(20.5f, worldZ);
-            Assert.Equal(1f, DemoMapCellSpace.CellSize);
+            Assert.Equal(1.5f, worldX);
+            Assert.Equal(8.5f, worldY);
+            Assert.Equal(0f, worldZ);
+            Assert.Equal(-20f, DemoMapCellSpace.MapOriginX);
+            Assert.Equal(-12f, DemoMapCellSpace.MapOriginY);
+            Assert.Equal(1f, DemoMapCellSpace.CellSizeX);
+            Assert.Equal(1f, DemoMapCellSpace.CellSizeY);
 
             IPersonMapPose? missing;
             Assert.False(presence.TryGet(new CitizenId(999), out missing));
@@ -258,6 +272,19 @@ namespace SocialEvolution.Tests
             Assert.Equal(1, secondEvents);
             Assert.Equal(OpeningSeed.CitizenCount, second.Poses.Count);
             Assert.False(second.Poses[0].InBuilding);
+        }
+
+        [Fact]
+        public void EnsureReadout_RegistersTheHourDriverOnce()
+        {
+            GameSession session = GameSession.CreateNew();
+            DemoReadout first = session.EnsureReadout();
+            DemoReadout second = session.EnsureReadout();
+            Assert.Same(first, second);
+            Assert.Same(first.Agents, second.Agents);
+            Assert.Equal(OpeningSeed.CitizenCount, first.Agents.BrainCount);
+            session.Time.StepHours(1);
+            Assert.Equal(1, first.Agents.HoursProcessed);
         }
 
         [Fact]

@@ -1,5 +1,6 @@
 #nullable enable
 using System;
+using System.Reflection;
 using SocialEvolution.Agents;
 using UnityEngine;
 
@@ -7,8 +8,8 @@ namespace SocialEvolution.Bootstrap
 {
     /// <summary>
     /// 用已经挂到时钟上的 <see cref="AgentsHourDriver"/> 发布地图姿态，
-    /// 并写进场景里每个 <see cref="CitizenMapVisualController.PoseSource"/>。
-    /// 不另建市民，也不画精灵。
+    /// 并写进场景里每个 CitizenMapVisualController.PoseSource。
+    /// 不替换那个控制器，不另建市民，也不画精灵。
     /// </summary>
     public static class CitizenMapPoseAutoAttach
     {
@@ -30,15 +31,29 @@ namespace SocialEvolution.Bootstrap
             IPersonMapPresence presence = session.AttachMapPresence(agents);
             var source = new CitizenMapPoseSource(presence);
             Current = source;
-            CitizenMapVisualController[] controllers = Object.FindObjectsByType<CitizenMapVisualController>(
+            AssignControllers(source);
+            return source;
+        }
+
+        private static void AssignControllers(CitizenMapPoseSource source)
+        {
+            MonoBehaviour[] behaviours = Object.FindObjectsByType<MonoBehaviour>(
                 FindObjectsInactive.Include,
                 FindObjectsSortMode.None);
-            for (int i = 0; i < controllers.Length; i++)
+            for (int i = 0; i < behaviours.Length; i++)
             {
-                controllers[i].PoseSource = source;
-            }
+                MonoBehaviour behaviour = behaviours[i];
+                if (behaviour == null || behaviour.GetType().Name != "CitizenMapVisualController")
+                {
+                    continue;
+                }
 
-            return source;
+                PropertyInfo? property = behaviour.GetType().GetProperty("PoseSource");
+                if (property != null && property.CanWrite)
+                {
+                    property.SetValue(behaviour, source);
+                }
+            }
         }
     }
 }

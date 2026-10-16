@@ -412,7 +412,12 @@ public static class PersonMapCells
 
 public static class DemoMapCellSpace
 {
-    public const float CellSize = 1f;
+    public const float CellSizeX = 1f;
+    public const float CellSizeY = 1f;
+    public const float MapOriginX = -20f;
+    public const float MapOriginY = -12f;
+    public const int MapWidth = 40;
+    public const int MapHeight = 24;
     public static void ToWorld(int cellX, int cellY, out float worldX, out float worldY, out float worldZ);
 }
 
@@ -598,6 +603,7 @@ public sealed class GameSession
     public ITimeService Time { get; }
     public WorldState World { get; }
     public IPersonMapPresence? MapPresence { get; }
+    public DemoReadout EnsureReadout();
     public IPersonMapPresence AttachMapPresence(AgentsHourDriver agents);
     public static GameSession CreateNew();
 }
@@ -619,9 +625,9 @@ public static class CitizenMapPoseAutoAttach
     public static CitizenMapPoseSource Apply(GameSession session, AgentsHourDriver agents);
 }
 
-public sealed class CitizenMapVisualController : MonoBehaviour
+public sealed class CitizenMapPoseHook : MonoBehaviour
 {
-    public ICitizenMapPoseSource? PoseSource { get; set; }
+    private void Start();
 }
 ```
 

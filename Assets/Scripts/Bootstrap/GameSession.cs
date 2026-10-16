@@ -2,6 +2,7 @@
 using System;
 using SocialEvolution.Agents;
 using SocialEvolution.Core;
+using SocialEvolution.Stats;
 using SocialEvolution.World;
 
 namespace SocialEvolution.Bootstrap
@@ -12,6 +13,7 @@ namespace SocialEvolution.Bootstrap
     public sealed class GameSession
     {
         private PersonMapPresence? _mapPresence;
+        private DemoReadout? _readout;
 
         public GameSession(ITimeService time, WorldState world)
         {
@@ -28,6 +30,21 @@ namespace SocialEvolution.Bootstrap
         /// 创建会话本身不会建市民大脑。
         /// </summary>
         public IPersonMapPresence? MapPresence => _mapPresence;
+
+        /// <summary>
+        /// 为这一局准备唯一的 <see cref="DemoReadout"/> 和小时驱动。再次调用返回同一份，避免重复注册。
+        /// <see cref="CreateNew"/> 本身不会调用它。
+        /// </summary>
+        public DemoReadout EnsureReadout()
+        {
+            if (_readout != null)
+            {
+                return _readout;
+            }
+
+            _readout = DemoReadout.Attach(Time, World);
+            return _readout;
+        }
 
         /// <summary>
         /// 用已经在跑的小时驱动发布地图姿态，不另建一套市民。
