@@ -65,7 +65,7 @@ namespace SocialEvolution.Bootstrap
                 return _grid;
             }
 
-            Grid[] grids = Object.FindObjectsByType<Grid>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            Grid[] grids = UnityEngine.Object.FindObjectsByType<Grid>(FindObjectsInactive.Include, FindObjectsSortMode.None);
             for (int i = 0; i < grids.Length; i++)
             {
                 Vector3 position = grids[i].transform.position;

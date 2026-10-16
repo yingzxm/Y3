@@ -16,7 +16,7 @@ namespace SocialEvolution.Bootstrap
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void Install()
         {
-            SimulationDriver? driver = Object.FindAnyObjectByType<SimulationDriver>();
+            SimulationDriver? driver = UnityEngine.Object.FindAnyObjectByType<SimulationDriver>();
             if (driver == null || driver.GetComponent<CitizenMapPoseHook>() != null)
             {
                 return;

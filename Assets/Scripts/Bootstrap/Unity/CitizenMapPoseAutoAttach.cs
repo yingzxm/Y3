@@ -37,7 +37,7 @@ namespace SocialEvolution.Bootstrap
 
         private static void AssignControllers(CitizenMapPoseSource source)
         {
-            MonoBehaviour[] behaviours = Object.FindObjectsByType<MonoBehaviour>(
+            MonoBehaviour[] behaviours = UnityEngine.Object.FindObjectsByType<MonoBehaviour>(
                 FindObjectsInactive.Include,
                 FindObjectsSortMode.None);
             for (int i = 0; i < behaviours.Length; i++)
