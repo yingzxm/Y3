@@ -417,7 +417,7 @@ readout.UseLivePrices(() => new GoodMidPrices(
     market.GetState(Good.Tool).MidPrice));
 ```
 
-就业率 = 在职人数 / 人口。平均时薪是在职市民 `WagePerHour` 的算术平均，没有在职时为 0。贫富指标是财富的基尼系数，范围 [0, 1]；财富有负数时先平移到最小值为 0。现金是 `Citizen.Wealth`。最急需求看 `AgentNeeds` 的紧急度，并列时饥饿、疲劳、财富、安全靠前的胜出；紧急度全是 0 则没有最急需求。
+就业率 = 在职人数 / 人口。平均时薪是在职市民 `WagePerHour` 的算术平均，没有在职时为 0。贫富指标是财富的基尼系数，范围 [0, 1]；财富有负数时先平移到最小值为 0。现金是 `Citizen.Wealth`。最急需求看 `AgentNeeds` 的紧急度，并列时饥饿、疲劳、财富、安全靠前的胜出；紧急度全是 0 则没有最急需求。同一排序的前三名在 `CitizenView.Need1`、`Need2`、`Need3`。住所是 `ResidenceId` / `ResidenceLabel`。心理 P 是 `PsychologyP`，等于 `PersonalityScalars.WorkDrive`；`RiskPreference` 和 `SavingTendency` 一并读出。没有 `AgentBrain` 时 `HasPsychology` 为 false。
 
 `DemoReadout.Attach` 给每个编制登记 8 小时白班（不改编制人数），为每位市民建 `AgentBrain`，并把 `AgentsHourDriver` 挂到时钟。`GameSession.CreateNew` 仍然只挂 `SimNoOp`。场景面板见 [stats.md](stats.md)。
 
@@ -459,6 +459,15 @@ public static class RichPoor
     public static double Compute(IReadOnlyList<Citizen> citizens);
 }
 
+public readonly struct CitizenNeedSlot
+{
+    public CitizenNeedSlot(bool present, NeedKind kind, float urgency);
+    public bool Present { get; }
+    public NeedKind Kind { get; }
+    public float Urgency { get; }
+    public string Label { get; }
+}
+
 public readonly struct CitizenView
 {
     public CitizenId Id { get; }
@@ -472,6 +481,20 @@ public readonly struct CitizenView
     public float TopNeedUrgency { get; }
     public string TopNeedLabel { get; }
     public IReadOnlyList<CitizenLogLine> RecentLogs { get; }
+    public BuildingId ResidenceId { get; }
+    public string ResidenceLabel { get; }
+    public EducationLevel Education { get; }
+    public string EducationLabel { get; }
+    public bool HasWorkplace { get; }
+    public BuildingId WorkplaceId { get; }
+    public CitizenNeedSlot Need1 { get; }
+    public CitizenNeedSlot Need2 { get; }
+    public CitizenNeedSlot Need3 { get; }
+    public bool HasPsychology { get; }
+    public float RiskPreference { get; }
+    public float WorkDrive { get; }
+    public float SavingTendency { get; }
+    public float PsychologyP { get; } // 等于 WorkDrive；没有大脑时为 0
     public bool TryGetThreeRecentLogs(out string first, out string second, out string third);
 }
 
