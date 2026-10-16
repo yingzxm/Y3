@@ -30,6 +30,7 @@ namespace SocialEvolution.Bootstrap
             }
 
             Readout = DemoReadout.Attach(driver.Session.Time, driver.Session.World);
+            CitizenMapPoseAutoAttach.Apply(driver.Session, Readout.Agents);
             _idText = "1";
         }
 

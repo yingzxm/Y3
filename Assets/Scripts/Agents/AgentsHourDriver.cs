@@ -68,6 +68,11 @@ namespace SocialEvolution.Agents
         /// <summary>每位市民最近的行动。求职、辞职、上班、进食、睡眠、购物、闲置都会记。</summary>
         public CitizenActionLog Log { get; }
 
+        /// <summary>
+        /// 这一小时的行动都执行完之后触发一次。地图姿态只听这个信号，不再挂第二份小时回调。
+        /// </summary>
+        public event Action<GameDateTime>? HourCompleted;
+
         public void Add(AgentBrain brain)
         {
             if (brain == null)
@@ -139,6 +144,15 @@ namespace SocialEvolution.Agents
 
                 ExecuteAndRecord(batch[i], action, now);
             }
+
+            HourCompleted?.Invoke(now);
+        }
+
+        internal AgentBrain[] CopyBrains()
+        {
+            var copy = new AgentBrain[_brains.Count];
+            _brains.CopyTo(copy);
+            return copy;
         }
 
         private void ExecuteAndRecord(AgentBrain brain, AgentAction action, GameDateTime now)
