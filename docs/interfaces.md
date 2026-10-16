@@ -357,6 +357,7 @@ public sealed class AgentBrain
     public PersonalityScalars Personality { get; }
     public AgentAction LastAction { get; }
     public bool IsEmployed { get; }
+    public bool IsInsideWorkplace { get; }
     public void BindPerson(IPersonReadModel person);
     public AgentAction SelectAction(float? prosperityIndex = null);
     public void Execute(AgentAction action, GameDateTime now, JobSeekContext? seekContext = null);
@@ -372,12 +373,52 @@ public sealed class AgentsHourDriver
     public JobSeekContext SeekContext { get; set; }
     public int HoursProcessed { get; }
     public CitizenActionLog Log { get; }
+    public event Action<GameDateTime>? HourCompleted;
     public void Add(AgentBrain brain);
     public bool Remove(AgentBrain brain);
     public bool TryGetBrain(CitizenId citizenId, out AgentBrain? brain);
     public void OnGameHour(GameDateTime now);
     public void Register(ISimStepHooks hooks);
     public void Unregister(ISimStepHooks hooks);
+}
+
+public interface IPersonMapPose
+{
+    CitizenId CitizenId { get; }
+    int CellX { get; }
+    int CellY { get; }
+    bool InBuilding { get; }
+}
+
+public interface IPersonMapPresence
+{
+    int Count { get; }
+    IReadOnlyList<IPersonMapPose> Poses { get; }
+    bool TryGet(CitizenId citizenId, out IPersonMapPose? pose);
+    event Action<GameDateTime>? Changed;
+    void FollowHours();
+    void UnfollowHours();
+}
+
+public static class PersonMapCells
+{
+    public const int CityCenterX = 16;
+    public const int CityCenterY = 16;
+    public const int Columns = 12;
+    public const int OriginX = 10;
+    public const int OriginY = 11;
+    public static void OutdoorCell(CitizenId citizenId, out int cellX, out int cellY);
+}
+
+public static class DemoMapCellSpace
+{
+    public const float CellSizeX = 1f;
+    public const float CellSizeY = 1f;
+    public const float MapOriginX = -20f;
+    public const float MapOriginY = -12f;
+    public const int MapWidth = 40;
+    public const int MapHeight = 24;
+    public static void ToWorld(int cellX, int cellY, out float worldX, out float worldY, out float worldZ);
 }
 
 public readonly struct CitizenLogLine
@@ -561,7 +602,32 @@ public sealed class GameSession
     public GameSession(ITimeService time, WorldState world);
     public ITimeService Time { get; }
     public WorldState World { get; }
+    public IPersonMapPresence? MapPresence { get; }
+    public DemoReadout EnsureReadout();
+    public IPersonMapPresence AttachMapPresence(AgentsHourDriver agents);
     public static GameSession CreateNew();
+}
+
+public interface ICitizenMapPoseSource
+{
+    bool TryGet(CitizenId id, out Vector3 world, out bool inBuilding);
+}
+
+public sealed class CitizenMapPoseSource : ICitizenMapPoseSource
+{
+    public CitizenMapPoseSource(IPersonMapPresence presence);
+    public bool TryGet(CitizenId id, out Vector3 world, out bool inBuilding);
+}
+
+public static class CitizenMapPoseAutoAttach
+{
+    public static CitizenMapPoseSource? Current { get; }
+    public static CitizenMapPoseSource Apply(GameSession session, AgentsHourDriver agents);
+}
+
+public sealed class CitizenMapPoseHook : MonoBehaviour
+{
+    private void Start();
 }
 ```
 

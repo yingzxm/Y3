@@ -69,6 +69,30 @@ namespace SocialEvolution.Agents
 
         public AgentAction LastAction { get; private set; } = AgentAction.None;
 
+        /// <summary>
+        /// 本小时已经进楼上班。地图用它决定隐藏：只有行动是 <see cref="AgentAction.Work"/>，
+        /// 并且劳动力市场仍能解析到工作场所时为 true。
+        /// 失业、求职、辞职、进食、睡眠（含在家）、购物、闲置和通勤都是 false，人留在户外。
+        /// </summary>
+        public bool IsInsideWorkplace
+        {
+            get
+            {
+                if (LastAction != AgentAction.Work)
+                {
+                    return false;
+                }
+
+                if (!_laborMarket.TryGetEmployment(_person.Id, out JobEmployment? employment) || employment == null)
+                {
+                    return false;
+                }
+
+                LaborJobPosting? posting;
+                return _laborMarket.TryGetPosting(employment.PostingId, out posting) && posting != null;
+            }
+        }
+
         public float EatSatisfactionGain { get; set; } = DefaultEatSatisfactionGain;
 
         public float ShopSafetyGain { get; set; } = DefaultShopSafetyGain;

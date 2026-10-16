@@ -43,3 +43,13 @@ agents.Register(session.Time);
 如果同时还注册了 `LaborHourDriver`，不要为同一个人再 `RequestApply` / `RequestQuit`。Agents 自己会调用 `TryApply` 和 `TryQuit`。重复投递只会得到 `RejectedAlreadyEmployed`，或者把刚入职的人又辞掉。
 
 求职权重从 `AgentBrain` 的构造函数注入 `JobSeekScoreWeights`。不传时用 `DemoDefaults`。
+
+## 地图姿态（只读）
+
+地图层不要再维护一份市民名单。`PersonMapPresence` 读的是已经在跑的 `AgentsHourDriver`。`GameSession.AttachMapPresence` 会订上这份驱动。轮询 `IPersonMapPresence.Poses` 或 `TryGet` 即可；要跟着游戏时刷新，先 `FollowHours`，再听 `Changed`。信号在每个游戏时、行动执行完之后发一次。开局时刻不发。不订阅也可以直接轮询。
+
+`InBuilding` / `AgentBrain.IsInsideWorkplace` 只在「本小时行动是上班，并且劳动市场仍能解析到工作场所」时为 true。失业、求职、辞职、进食、睡眠（包括在家）、购物、闲置都是 false，人留在户外格上，地图应显示。进楼不改格子，只把人隐藏。
+
+格子按 `CitizenId` 从城心 (16, 16) 附近铺开，没有随机数：市民 1 在 (10, 11)，每行 12 人，市民 120 在 (21, 20)，都落在 40×24 的 DemoMap 里。世界坐标是 Unity 2D 的 XY。DemoMap 的 Grid 在 (-20, -12, 0)，cellSize (1, 1, 0)。`DemoMapCellSpace.ToWorld` 与 `Grid.GetCellCenterWorld` 相同：`(CellX - 19.5, CellY - 11.5, 0)`。市民 1 的世界坐标是 (-9.5, -0.5, 0)。场景里能找到这块 Grid 时，`CitizenMapPoseSource` 直接调用 `GetCellCenterWorld`。
+
+Unity 侧合同不要改名：`ICitizenMapPoseSource.TryGet(CitizenId id, out Vector3 world, out bool inBuilding)`。返回 true 表示这个市民有姿态；`inBuilding` 为 true 时隐藏精灵，为 false 时画在 `world`。`CitizenMapVisualController` 的生成、`ApplyPose` 和 `[CitizenMap] spawned` 留在 Gap 那份控制器里，这里不替换它。`CitizenMapPoseHook` 在 AfterSceneLoad 挂到 `SimulationDriver` 上，Start 时 `EnsureReadout`（只有一份小时驱动）再 `CitizenMapPoseAutoAttach.Apply`。Apply 把姿态写到 `GameSession.MapPresence` 和 `CitizenMapPoseAutoAttach.Current`，并赋给已经在场的 `CitizenMapVisualController.PoseSource`。没有统计面板时也同样发布。`PoseSource` 为空时地图层继续用自己的占位散布。

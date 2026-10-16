@@ -98,7 +98,7 @@ namespace SocialEvolution.Tests
             Assert.Contains("OnGUI", panel, StringComparison.Ordinal);
             Assert.Contains("SelectCitizen", panel, StringComparison.Ordinal);
             Assert.Contains("TryGetThreeRecentLogs", panel, StringComparison.Ordinal);
-            Assert.Contains("DemoReadout.Attach", panel, StringComparison.Ordinal);
+            Assert.Contains("EnsureReadout", panel, StringComparison.Ordinal);
             Assert.Contains("RecentLogs", panel, StringComparison.Ordinal);
         }
 
