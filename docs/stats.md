@@ -48,6 +48,24 @@ bool ready = readout.TryGetThreeRecentLogs(out string first, out string second, 
 
 `Attach` 会做三件事：给每个编制登记 8 小时白班（不改编制人数）、为每位市民建 `AgentBrain`、把 `AgentsHourDriver` 注册到时钟。每个游戏时，驱动把实际执行的行动写进 `CitizenActionLog`：求职、辞职、上班、进食、睡眠、购物、闲置。同一小时每人一行。`GameSession.CreateNew` 自己不会注册驱动；拆掉面板之后 Play 只走时钟。
 
+## 住宅只读
+
+`HousingDetailPanel` 不在这个程序集里。壳层拿到 `BuildingId` 后调用：
+
+```csharp
+bool found = readout.Housing.TryRead(buildingId, out HousingView view);
+```
+
+`found` 为 false 表示没有这栋建筑，或者它不是住宅。为 true 时：
+
+- `view.BuildingName` 是建筑名
+- `view.OccupantCount` / `view.Capacity` 是当前人数和居住容量
+- `view.ResidentDisplayNames`（与 `view.ResidentNames` 相同）是住户名字，来自 `Citizen.Name`，按在册顺序
+- `view.Food`、`view.Wood`、`view.Tool` 是该建筑库存
+- `view.Firewood`、`view.Stone`、`view.Iron`、`view.Cloth`、`view.Water` 在领域 `Good` 扩到这五项之前一直是 0
+
+只读，不点地图，也不改库存。
+
 ## 中间价改成市场现价
 
 市场程序集进来之后，不要改统计的签名，只要每次读取时填 `MidPrice`：

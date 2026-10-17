@@ -487,6 +487,31 @@ public sealed class CitizenPicker
     public bool TryRead(CitizenId id, out CitizenView view);
 }
 
+public readonly struct HousingView
+{
+    public HousingView(BuildingId id, string buildingName, int capacity, IReadOnlyList<string> residentDisplayNames, int food, int firewood, int wood, int stone, int iron, int tool, int cloth, int water);
+    public BuildingId Id { get; }
+    public string BuildingName { get; }
+    public int OccupantCount { get; }
+    public int Capacity { get; }
+    public IReadOnlyList<string> ResidentDisplayNames { get; }
+    public IReadOnlyList<string> ResidentNames { get; }
+    public int Food { get; }
+    public int Firewood { get; }
+    public int Wood { get; }
+    public int Stone { get; }
+    public int Iron { get; }
+    public int Tool { get; }
+    public int Cloth { get; }
+    public int Water { get; }
+}
+
+public sealed class HousingDetailReader
+{
+    public HousingDetailReader(WorldState world);
+    public bool TryRead(BuildingId id, out HousingView view);
+}
+
 public sealed class DemoReadout
 {
     public const float DemoShiftHours = 8f;
@@ -496,6 +521,7 @@ public sealed class DemoReadout
     public static void PublishDayShift(ILaborMarket labor, WorldState world);
     public void UseLivePrices(Func<IMidPriceSource> readEachTime);
     public CityStats Read();
+    public HousingDetailReader Housing { get; }
     public bool Select(CitizenId id);
     public bool SelectNext();
     public bool SelectPrevious();
@@ -503,6 +529,8 @@ public sealed class DemoReadout
     public bool TryGetThreeRecentLogs(out string first, out string second, out string third);
 }
 ```
+
+`HousingDetailReader.TryRead` 在建筑不存在或 `Kind != Housing` 时返回 false。住户按 `Citizen.ResidenceId` 扫描，展示名是 `Citizen.Name`。`Food` / `Wood` / `Tool` 读该建筑库存；`Firewood`、`Stone`、`Iron`、`Cloth`、`Water` 在 `Good` 扩到这五项之前为 0。
 
 ## 世界与种子
 
