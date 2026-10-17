@@ -30,6 +30,7 @@ namespace SocialEvolution.Stats
             Agents = agents ?? throw new ArgumentNullException(nameof(agents));
             _prices = prices ?? throw new ArgumentNullException(nameof(prices));
             Picker = new CitizenPicker(world, labor, agents);
+            Housing = new HousingDetailReader(world);
         }
 
         public WorldState World { get; }
@@ -39,6 +40,8 @@ namespace SocialEvolution.Stats
         public AgentsHourDriver Agents { get; }
 
         public CitizenPicker Picker { get; }
+
+        public HousingDetailReader Housing { get; }
 
         public static DemoReadout Attach(ITimeService time, WorldState world)
         {

@@ -188,6 +188,109 @@ namespace SocialEvolution.Tests
         }
 
         [Fact]
+        public void HousingDetail_ReadsResidentsCapacityAndMapsOnlyKnownGoods()
+        {
+            Citizen first = Person(1, 10L);
+            Citizen second = Person(2, 20L);
+            var otherHome = new BuildingId(6);
+            Citizen neighbor = new Citizen(
+                new CitizenId(3),
+                "邻里003",
+                40,
+                EducationLevel.Primary,
+                Array.Empty<SkillLevel>(),
+                1f,
+                5L,
+                otherHome);
+            var housing = new Building(HomeId, BuildingKind.Housing, "公共住宅1", 30);
+            var annex = new Building(otherHome, BuildingKind.Housing, "公共住宅2", 4);
+            var farm = new Building(FarmId, BuildingKind.Farm, "城郊农场");
+            WorldState world = new WorldState(
+                new[] { first, second, neighbor },
+                new[]
+                {
+                    new BuildingSite(housing, new Inventory(200)),
+                    new BuildingSite(annex, new Inventory(20)),
+                    new BuildingSite(farm, new Inventory(100, (Good.Food, 9), (Good.Wood, 8), (Good.Tool, 7))),
+                },
+                new Treasury(0));
+            Assert.True(world.TryDeposit(HomeId, Good.Food, 4).Succeeded);
+            Assert.True(world.TryDeposit(HomeId, Good.Wood, 7).Succeeded);
+            Assert.True(world.TryDeposit(HomeId, Good.Tool, 2).Succeeded);
+
+            var reader = new HousingDetailReader(world);
+            HousingView view;
+            Assert.True(reader.TryRead(HomeId, out view));
+            Assert.Equal(HomeId, view.Id);
+            Assert.Equal("公共住宅1", view.BuildingName);
+            Assert.Equal(2, view.OccupantCount);
+            Assert.Equal(30, view.Capacity);
+            Assert.Equal(new[] { "市民001", "市民002" }, view.ResidentDisplayNames);
+            Assert.Equal(view.ResidentDisplayNames, view.ResidentNames);
+            Assert.Equal(4, view.Food);
+            Assert.Equal(0, view.Firewood);
+            Assert.Equal(7, view.Wood);
+            Assert.Equal(0, view.Stone);
+            Assert.Equal(0, view.Iron);
+            Assert.Equal(2, view.Tool);
+            Assert.Equal(0, view.Cloth);
+            Assert.Equal(0, view.Water);
+            Assert.Equal(4, world.GetQuantity(HomeId, Good.Food));
+
+            Assert.True(reader.TryRead(otherHome, out view));
+            Assert.Equal("公共住宅2", view.BuildingName);
+            Assert.Equal(1, view.OccupantCount);
+            Assert.Equal(4, view.Capacity);
+            Assert.Equal(new[] { "邻里003" }, view.ResidentDisplayNames);
+            Assert.Equal(0, view.Food);
+            Assert.Equal(0, view.Wood);
+            Assert.Equal(0, view.Tool);
+            Assert.Equal(0, view.Firewood);
+            Assert.Equal(0, view.Stone);
+            Assert.Equal(0, view.Iron);
+            Assert.Equal(0, view.Cloth);
+            Assert.Equal(0, view.Water);
+
+            HousingView missing;
+            Assert.False(reader.TryRead(FarmId, out missing));
+            Assert.Equal(string.Empty, missing.BuildingName);
+            Assert.Empty(missing.ResidentDisplayNames);
+            Assert.False(reader.TryRead(new BuildingId(99), out missing));
+        }
+
+        [Fact]
+        public void HousingDetail_OnTheOpeningSeed_ListsEachHouseAndLeavesUnknownGoodsAtZero()
+        {
+            GameSession session = GameSession.CreateNew();
+            DemoReadout readout = DemoReadout.Attach(session.Time, session.World);
+            var firstHouse = new BuildingId(OpeningSeed.FirstHousingBuildingId);
+            HousingView view;
+            Assert.True(readout.Housing.TryRead(firstHouse, out view));
+            Assert.Equal("公共住宅1", view.BuildingName);
+            Assert.Equal(OpeningSeed.HousingResidentCapacity, view.OccupantCount);
+            Assert.Equal(OpeningSeed.HousingResidentCapacity, view.Capacity);
+            Assert.Equal(OpeningSeed.HousingResidentCapacity, view.ResidentNames.Count);
+            Assert.Equal("市民001", view.ResidentDisplayNames[0]);
+            Assert.Equal("市民030", view.ResidentDisplayNames[29]);
+            Assert.Equal(0, view.Food);
+            Assert.Equal(0, view.Firewood);
+            Assert.Equal(0, view.Wood);
+            Assert.Equal(0, view.Stone);
+            Assert.Equal(0, view.Iron);
+            Assert.Equal(0, view.Tool);
+            Assert.Equal(0, view.Cloth);
+            Assert.Equal(0, view.Water);
+
+            var lastHouse = new BuildingId(OpeningSeed.FirstHousingBuildingId + OpeningSeed.HousingCount - 1);
+            Assert.True(readout.Housing.TryRead(lastHouse, out view));
+            Assert.Equal("公共住宅4", view.BuildingName);
+            Assert.Equal("市民091", view.ResidentDisplayNames[0]);
+            Assert.Equal("市民120", view.ResidentDisplayNames[29]);
+            Assert.False(readout.Housing.TryRead(new BuildingId(OpeningSeed.FarmBuildingId), out view));
+            Assert.Throws<ArgumentNullException>(() => new HousingDetailReader(null!));
+        }
+
+        [Fact]
         public void DemoReadout_OnTheOpeningSeed_FeedsThreeLogsAndDemoPrices()
         {
             GameSession session = GameSession.CreateNew();
