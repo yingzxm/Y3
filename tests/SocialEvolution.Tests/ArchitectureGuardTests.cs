@@ -39,6 +39,7 @@ namespace SocialEvolution.Tests
             Assert.True(NoEngine("Core"));
             Assert.True(NoEngine("Domain"));
             Assert.True(NoEngine("World"));
+            Assert.True(NoEngine("Economy"));
             Assert.True(NoEngine("Labor"));
             Assert.True(NoEngine("Agents"));
             Assert.True(NoEngine("Stats"));
@@ -48,11 +49,15 @@ namespace SocialEvolution.Tests
             Assert.Empty(References("Core"));
             Assert.Equal(new[] { "SocialEvolution.Domain" }, References("World"));
             Assert.Equal(
+                new[] { "SocialEvolution.Domain", "SocialEvolution.World", "SocialEvolution.Core" },
+                References("Economy"));
+            Assert.Equal(
                 new[]
                 {
                     "SocialEvolution.Core",
                     "SocialEvolution.Domain",
                     "SocialEvolution.World",
+                    "SocialEvolution.Economy",
                     "SocialEvolution.Labor",
                     "SocialEvolution.Agents",
                     "SocialEvolution.Stats",
@@ -83,11 +88,13 @@ namespace SocialEvolution.Tests
             AssertNoEngine(Path.Combine(root, "Assets", "Scripts", "Core"));
             AssertNoEngine(Path.Combine(root, "Assets", "Scripts", "Domain"));
             AssertNoEngine(Path.Combine(root, "Assets", "Scripts", "World"));
+            AssertNoEngine(Path.Combine(root, "Assets", "Scripts", "Economy"));
             AssertNoEngine(Path.Combine(root, "Assets", "Scripts", "Labor"));
             AssertNoEngineIfPresent(Path.Combine(root, "Assets", "Scripts", "Agents"));
             AssertNoEngine(Path.Combine(root, "Assets", "Scripts", "Stats"));
             AssertNoEngineFile(Path.Combine(root, "Assets", "Scripts", "Bootstrap", "OpeningSeed.cs"));
             AssertNoEngineFile(Path.Combine(root, "Assets", "Scripts", "Bootstrap", "GameSession.cs"));
+            AssertNoEngineFile(Path.Combine(root, "Assets", "Scripts", "Bootstrap", "LaborOutputScale.cs"));
 
             string driver = File.ReadAllText(Path.Combine(root, "Assets", "Scripts", "Bootstrap", "Unity", "SimulationDriver.cs"));
             Assert.Contains("MonoBehaviour", driver, StringComparison.Ordinal);
@@ -99,7 +106,18 @@ namespace SocialEvolution.Tests
             Assert.Contains("SelectCitizen", panel, StringComparison.Ordinal);
             Assert.Contains("TryGetThreeRecentLogs", panel, StringComparison.Ordinal);
             Assert.Contains("DemoReadout.Attach", panel, StringComparison.Ordinal);
+            Assert.Contains("UseLivePrices", panel, StringComparison.Ordinal);
+            Assert.Contains("BindLabor", panel, StringComparison.Ordinal);
             Assert.Contains("RecentLogs", panel, StringComparison.Ordinal);
+
+            string marketPanel = File.ReadAllText(Path.Combine(root, "Assets", "Scripts", "Bootstrap", "Unity", "MarketDebugPanel.cs"));
+            Assert.Contains("MonoBehaviour", marketPanel, StringComparison.Ordinal);
+            Assert.Contains("OnGUI", marketPanel, StringComparison.Ordinal);
+            Assert.Contains("TryGovernmentBuy", marketPanel, StringComparison.Ordinal);
+            Assert.Contains("TryGovernmentSell", marketPanel, StringComparison.Ordinal);
+            string scene = File.ReadAllText(Path.Combine(root, "Assets", "Scenes", "Bootstrap.unity"));
+            Assert.Contains("MarketDebugPanel", scene, StringComparison.Ordinal);
+            Assert.Contains("StatsDebugPanel", scene, StringComparison.Ordinal);
         }
 
         [Fact]
@@ -258,6 +276,7 @@ namespace SocialEvolution.Tests
                 typeof(SocialEvolution.Core.TimeService).Assembly,
                 typeof(Citizen).Assembly,
                 typeof(WorldState).Assembly,
+                typeof(SocialEvolution.Economy.CityMarket).Assembly,
                 typeof(SocialEvolution.Bootstrap.GameSession).Assembly,
                 typeof(SocialEvolution.Labor.LaborMarket).Assembly,
                 typeof(SocialEvolution.Agents.AgentBrain).Assembly,

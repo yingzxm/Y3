@@ -1,6 +1,6 @@
 # 统计与市民点选（P0-8）
 
-`SocialEvolution.Stats` 不引用 Unity。人口、就业、时薪和贫富从 World / Labor / Agents 读。三种商品的中间价从 `IMidPriceSource` 读，对齐市场的 `ICityMarket.GetState(good).MidPrice`（`long`）。当前分支没有 Economy 程序集，演示先用锚定价：食物 10、木材 8、工具 40。
+`SocialEvolution.Stats` 不引用 Unity，也不引用 Economy。人口、就业、时薪和贫富从 World / Labor / Agents 读。三种商品的中间价从 `IMidPriceSource` 读，对齐市场的 `ICityMarket.GetState(good).MidPrice`（`long`）。开局锚定价是食物 10、木材 8、工具 40。`StatsDebugPanel` 在挂上代理人之后调用 `UseLivePrices`，之后面板读的是市场现价。
 
 贫富指标是财富的基尼系数，0 是均等，1 是极分化。现金是 `Citizen.Wealth`。最急需求是紧急度最高的那一项；并列时饥饿、疲劳、财富、安全靠前的胜出。四项紧急度都是 0 时，面板写「最急需求 无」。
 
@@ -46,11 +46,13 @@ session.Time.StepHours(3);
 bool ready = readout.TryGetThreeRecentLogs(out string first, out string second, out string third);
 ```
 
-`Attach` 会做三件事：给每个编制登记 8 小时白班（不改编制人数）、为每位市民建 `AgentBrain`、把 `AgentsHourDriver` 注册到时钟。每个游戏时，驱动把实际执行的行动写进 `CitizenActionLog`：求职、辞职、上班、进食、睡眠、购物、闲置。同一小时每人一行。`GameSession.CreateNew` 自己不会注册驱动；拆掉面板之后 Play 只走时钟。
+`Attach` 会做三件事：给每个编制登记 8 小时白班（不改编制人数）、为每位市民建 `AgentBrain`、把 `AgentsHourDriver` 注册到时钟。每个游戏时，驱动把实际执行的行动写进 `CitizenActionLog`：求职、辞职、上班、进食、睡眠、购物、闲置。同一小时每人一行。`GameSession.CreateNew` 自己不会注册这个驱动；它会注册市场小时钩子。拆掉统计面板之后，Play 仍会生产和调价，但不会应聘。
+
+市场小时钩子先于代理人执行：先生产、卖出超额、结算中间价，然后市民才行动。这一小时的入职要到下一小时才计入产量。
 
 ## 中间价改成市场现价
 
-市场程序集进来之后，不要改统计的签名，只要每次读取时填 `MidPrice`：
+统计签名不变。`StatsDebugPanel.Start` 在 `Attach` 之后做两件事：`session.BindLabor(readout.Labor)`，以及：
 
 ```csharp
 readout.UseLivePrices(() => new GoodMidPrices(
@@ -59,4 +61,4 @@ readout.UseLivePrices(() => new GoodMidPrices(
     market.GetState(Good.Tool).MidPrice));
 ```
 
-成交和库存压力调价仍不在这个里程碑。面板上的 10 / 8 / 40 在接上 `UseLivePrices` 之前保持不动。
+绑定之后，农场和工厂的产量按该建筑已登记岗位的在职人数 / 编制缩放，向下取整。开局没有在职，所以第一个游戏时不产，空集市会把中间价向压力价移动 1。有人上班之后，下一小时才按比例生产。不调用 `BindLabor` 时仍是满产。

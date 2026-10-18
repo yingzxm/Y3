@@ -5,6 +5,7 @@
     "SocialEvolution.Core",
     "SocialEvolution.Domain",
     "SocialEvolution.World",
+    "SocialEvolution.Economy",
     "SocialEvolution.Labor",
     "SocialEvolution.Agents",
     "SocialEvolution.Stats"
