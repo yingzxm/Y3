@@ -3,7 +3,8 @@
 namespace SocialEvolution.Core
 {
     /// <summary>
-    /// 空的模拟槽。经济、招聘、市场和数值 Utility 都不在 P0 里运行。
+    /// 空的模拟槽。招聘、发薪和数值 Utility 不在这里。
+    /// 市场小时结算由 GameSession 另行注册 CityMarket.OnGameHour。
     /// </summary>
     public static class SimNoOp
     {

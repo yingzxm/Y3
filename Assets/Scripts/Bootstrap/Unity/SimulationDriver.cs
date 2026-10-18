@@ -6,8 +6,9 @@ namespace SocialEvolution.Bootstrap
 {
     /// <summary>
     /// 把 Unity 帧时间送进 <see cref="ITimeService"/>。播放模式才会走 <see cref="Update"/>。
-    /// 代理人不在这里每帧决策。统计和点选由同一物体上的 <see cref="StatsDebugPanel"/>
-    /// 在 <c>Start</c> 里把 AgentsHourDriver 注册到 <see cref="GameSession.Time"/>。见 docs/stats.md。
+    /// <see cref="GameSession.CreateNew"/> 已经把市场小时钩子挂上。代理人不在这里每帧决策。
+    /// 统计和点选由同一物体上的 <see cref="StatsDebugPanel"/> 在 <c>Start</c> 里注册，
+    /// 并把劳动力市场接到产量缩放和现价上。见 docs/stats.md。
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class SimulationDriver : MonoBehaviour

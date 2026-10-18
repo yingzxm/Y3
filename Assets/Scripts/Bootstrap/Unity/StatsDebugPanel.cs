@@ -1,6 +1,7 @@
 #nullable enable
 using System;
 using SocialEvolution.Domain;
+using SocialEvolution.Economy;
 using SocialEvolution.Stats;
 using UnityEngine;
 
@@ -29,7 +30,18 @@ namespace SocialEvolution.Bootstrap
                 return;
             }
 
-            Readout = DemoReadout.Attach(driver.Session.Time, driver.Session.World);
+            DemoReadout readout = DemoReadout.Attach(driver.Session.Time, driver.Session.World);
+            Readout = readout;
+            CityMarket? market = driver.Session.Market;
+            if (market != null)
+            {
+                driver.Session.BindLabor(readout.Labor);
+                readout.UseLivePrices(() => new GoodMidPrices(
+                    market.GetState(Good.Food).MidPrice,
+                    market.GetState(Good.Wood).MidPrice,
+                    market.GetState(Good.Tool).MidPrice));
+            }
+
             _idText = "1";
         }
 

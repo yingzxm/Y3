@@ -7,7 +7,7 @@ namespace SocialEvolution.Stats
     /// <summary>
     /// 食物、木材、工具的中间价。
     /// <see cref="DemoOpening"/> 使用市场开局锚定价：食物 10、木材 8、工具 40。
-    /// 市场接入后改为每个游戏时读 <c>GoodMarketState.MidPrice</c>。
+    /// 场景面板通过 <c>DemoReadout.UseLivePrices</c> 改为每个游戏时读 <c>GoodMarketState.MidPrice</c>。
     /// </summary>
     public sealed class GoodMidPrices : IMidPriceSource
     {
