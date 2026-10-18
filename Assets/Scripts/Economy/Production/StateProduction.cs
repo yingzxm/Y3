@@ -7,8 +7,8 @@ using SocialEvolution.World;
 namespace SocialEvolution.Economy
 {
     /// <summary>
-    /// 国企建筑的最小生产步进。产能按建筑类型固定，不读在职人数，也不点名派工。
-    /// 日后接 Labor：用到岗人数相对编制的比例缩放这里的产量；没招到人就少产。
+    /// 国企建筑的最小生产步进。不点名派工，本程序集也不引用劳动力程序集。
+    /// 不传比例时按建筑类型满产。传入 0–1 的比例时向下取整；0 表示这一小时不产。
     /// 没有林场。农场在食物之外旁路产出木材，工厂消耗木材产出工具。
     /// 有输入时先出库，出库成功才入库；入库失败则把输入退回，本步不产。
     /// </summary>
@@ -24,6 +24,12 @@ namespace SocialEvolution.Economy
 
         public static void Run(WorldState world)
         {
+            Run(world, null);
+        }
+
+        /// <param name="outputScale">按建筑返回 0–1。空表示满产。小于 0 或非有限数按 0。</param>
+        public static void Run(WorldState world, Func<BuildingId, float>? outputScale)
+        {
             if (world == null)
             {
                 throw new ArgumentNullException(nameof(world));
@@ -33,16 +39,68 @@ namespace SocialEvolution.Economy
             for (int i = 0; i < sites.Count; i++)
             {
                 BuildingSite site = sites[i];
+                float scale = ResolveScale(outputScale, site.Id);
                 if (site.Building.Kind == BuildingKind.Farm)
                 {
-                    TryConvert(site.Inventory, Good.Food, 0, Good.Food, FarmFoodPerHour);
-                    TryConvert(site.Inventory, Good.Wood, 0, Good.Wood, FarmWoodPerHour);
+                    int food = ScaleQuantity(FarmFoodPerHour, scale);
+                    int wood = ScaleQuantity(FarmWoodPerHour, scale);
+                    if (food > 0)
+                    {
+                        TryConvert(site.Inventory, Good.Food, 0, Good.Food, food);
+                    }
+
+                    if (wood > 0)
+                    {
+                        TryConvert(site.Inventory, Good.Wood, 0, Good.Wood, wood);
+                    }
                 }
                 else if (site.Building.Kind == BuildingKind.Factory)
                 {
-                    TryConvert(site.Inventory, Good.Wood, FactoryWoodInput, Good.Tool, FactoryToolOutput);
+                    int tools = ScaleQuantity(FactoryToolOutput, scale);
+                    if (tools > 0)
+                    {
+                        int wood = ScaleQuantity(FactoryWoodInput, scale);
+                        TryConvert(site.Inventory, Good.Wood, wood, Good.Tool, tools);
+                    }
                 }
             }
+        }
+
+        private static float ResolveScale(Func<BuildingId, float>? outputScale, BuildingId buildingId)
+        {
+            if (outputScale == null)
+            {
+                return 1f;
+            }
+
+            float scale = outputScale(buildingId);
+            if (float.IsNaN(scale) || float.IsInfinity(scale) || scale <= 0f)
+            {
+                return 0f;
+            }
+
+            if (scale >= 1f)
+            {
+                return 1f;
+            }
+
+            return scale;
+        }
+
+        private static int ScaleQuantity(int amount, float scale)
+        {
+            if (amount <= 0 || scale <= 0f)
+            {
+                return 0;
+            }
+
+            if (scale >= 1f)
+            {
+                return amount;
+            }
+
+            int scaled = (int)Math.Floor(amount * (double)scale);
+            return scaled < 0 ? 0 : scaled;
         }
 
         /// <summary>

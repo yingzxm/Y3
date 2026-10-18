@@ -1,7 +1,10 @@
+using System.Collections.Generic;
 using SocialEvolution.Bootstrap;
 using SocialEvolution.Core;
 using SocialEvolution.Domain;
 using SocialEvolution.Economy;
+using SocialEvolution.Labor;
+using SocialEvolution.Stats;
 using SocialEvolution.World;
 using Xunit;
 
@@ -230,6 +233,93 @@ namespace SocialEvolution.Tests
             Assert.Equal(OpeningSeed.InitialTreasury, session.World.Treasury.Balance);
             Assert.Equal(new GameDateTime(1, 1), session.Market!.LastSettled);
             Assert.True(session.Market.GetState(Good.Food).MidPrice < CityMarket.FoodMidPrice);
+        }
+
+        [Fact]
+        public void Production_ScalesDownAndSkipsWhenTheRatioIsZero()
+        {
+            WorldState half = OpeningSeed.Create();
+            BuildingId farm = new BuildingId(OpeningSeed.FarmBuildingId);
+            BuildingId factory = new BuildingId(OpeningSeed.FactoryBuildingId);
+            StateProduction.Run(half, _ => 0.5f);
+
+            Assert.Equal(OpeningSeed.FarmFood + 2, half.GetQuantity(farm, Good.Food));
+            Assert.Equal(0, half.GetQuantity(farm, Good.Wood));
+            Assert.Equal(OpeningSeed.FactoryWood, half.GetQuantity(factory, Good.Wood));
+            Assert.Equal(0, half.GetQuantity(factory, Good.Tool));
+
+            WorldState idle = OpeningSeed.Create();
+            StateProduction.Run(idle, _ => 0f);
+            Assert.Equal(OpeningSeed.FarmFood, idle.GetQuantity(farm, Good.Food));
+            Assert.Equal(OpeningSeed.FactoryWood, idle.GetQuantity(factory, Good.Wood));
+        }
+
+        [Fact]
+        public void BoundLabor_WithNoStaff_ProducesNothingUntilSomeoneIsHired()
+        {
+            GameSession session = GameSession.CreateNew();
+            var labor = new LaborMarket(session.World);
+            DemoReadout.PublishDayShift(labor, session.World);
+            session.BindLabor(labor);
+            BuildingId farm = new BuildingId(OpeningSeed.FarmBuildingId);
+            BuildingId factory = new BuildingId(OpeningSeed.FactoryBuildingId);
+            BuildingId pit = new BuildingId(OpeningSeed.MarketBuildingId);
+
+            Assert.Equal(1, session.Time.StepHours(1));
+            Assert.Equal(OpeningSeed.FarmFood, session.World.GetQuantity(farm, Good.Food));
+            Assert.Equal(OpeningSeed.FactoryWood, session.World.GetQuantity(factory, Good.Wood));
+            Assert.Equal(0, session.World.GetQuantity(pit, Good.Food));
+            Assert.Equal(CityMarket.FoodMidPrice + CityMarket.DriftStep, session.Market!.GetState(Good.Food).MidPrice);
+
+            int hired = 0;
+            IReadOnlyList<Citizen> citizens = session.World.Citizens;
+            var farmer = new JobPostingId(OpeningSeed.FarmerPostingId);
+            for (int i = 0; i < citizens.Count && hired < 11; i++)
+            {
+                if (labor.TryApply(citizens[i], farmer, session.Time.Now) == LaborApplyResult.Hired)
+                {
+                    hired++;
+                }
+            }
+
+            Assert.Equal(11, hired);
+            Assert.Equal(0.5f, LaborOutputScale.ForBuilding(labor, session.World, farm));
+            session.Market.RunProduction();
+            Assert.Equal(OpeningSeed.FarmFood + 2, session.World.GetQuantity(farm, Good.Food));
+            Assert.Equal(0, session.World.GetQuantity(farm, Good.Wood));
+            Assert.Equal(OpeningSeed.FactoryWood, session.World.GetQuantity(factory, Good.Wood));
+        }
+
+        [Fact]
+        public void AgentsAndStats_ReadLivePricesOnTheSameHourAsTheMarket()
+        {
+            GameSession session = GameSession.CreateNew();
+            long treasury = session.World.Treasury.Balance;
+            long wealth = session.World.Citizens[0].Wealth;
+            DemoReadout readout = DemoReadout.Attach(session.Time, session.World);
+            session.BindLabor(readout.Labor);
+            CityMarket market = session.Market!;
+            readout.UseLivePrices(() => new GoodMidPrices(
+                market.GetState(Good.Food).MidPrice,
+                market.GetState(Good.Wood).MidPrice,
+                market.GetState(Good.Tool).MidPrice));
+
+            CityStats opening = readout.Read();
+            Assert.Equal(CityMarket.FoodMidPrice, opening.FoodMidPrice);
+            Assert.Equal(CityMarket.WoodMidPrice, opening.WoodMidPrice);
+            Assert.Equal(CityMarket.ToolMidPrice, opening.ToolMidPrice);
+
+            Assert.Equal(1, session.Time.StepHours(1));
+
+            CityStats after = readout.Read();
+            Assert.Equal(CityMarket.FoodMidPrice + CityMarket.DriftStep, after.FoodMidPrice);
+            Assert.Equal(treasury, session.World.Treasury.Balance);
+            Assert.Equal(wealth, session.World.Citizens[0].Wealth);
+            Assert.Equal(OpeningSeed.GovernmentFood, session.World.GetQuantity(new BuildingId(OpeningSeed.GovernmentBuildingId), Good.Food));
+            CitizenView selected;
+            Assert.True(readout.TryGetSelected(out selected));
+            Assert.True(selected.RecentLogs.Count >= 1);
+            Assert.Equal(wealth, selected.Cash);
         }
     }
 }

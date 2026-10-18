@@ -38,6 +38,7 @@ namespace SocialEvolution.Economy
         private readonly Dictionary<Good, GoodMarketState> _states;
         private readonly Good[] _order;
         private readonly Dictionary<int, CashLedger> _producerCash = new Dictionary<int, CashLedger>();
+        private Func<BuildingId, float>? _outputScale;
 
         public CityMarket(WorldState world)
         {
@@ -218,7 +219,19 @@ namespace SocialEvolution.Economy
             return TrySell(new TreasuryLedger(_world.Treasury), government.Inventory, good, quantity);
         }
 
-        public void RunProduction() => StateProduction.Run(_world);
+        /// <summary>为 true 时，<see cref="RunProduction"/> 按绑定的比例缩放，而不是满产。</summary>
+        public bool ScalesWithStaffing => _outputScale != null;
+
+        /// <summary>
+        /// 按建筑缩放产量。比例来自调用方（通常是在职人数 / 编制）。
+        /// 传 null 恢复满产。本类型不引用劳动力程序集。
+        /// </summary>
+        public void BindOutputScale(Func<BuildingId, float>? scale)
+        {
+            _outputScale = scale;
+        }
+
+        public void RunProduction() => StateProduction.Run(_world, _outputScale);
 
         public void SettlePrices()
         {
@@ -245,6 +258,7 @@ namespace SocialEvolution.Economy
         /// <summary>
         /// 小时钩子。顺序：生产入库、国企卖出超出储备的产出、结算中间价。
         /// 由 <c>GameSession.CreateNew</c> 注册到 <see cref="ITimeService"/>。
+        /// 同一小时里，后注册的市民决策发生在这次结算之后。
         /// </summary>
         public void OnGameHour(GameDateTime now)
         {

@@ -9,8 +9,8 @@ using UnityEngine;
 namespace SocialEvolution.Bootstrap
 {
     /// <summary>
-    /// Bootstrap 场景里的市场调试面板。和 <see cref="SimulationDriver"/> 挂在同一个物体上。
-    /// 只做观察和政府买卖。设岗、设薪、建设仍属于 P0-7。
+    /// Bootstrap 场景里的市场调试面板。和 <see cref="SimulationDriver"/>、<see cref="StatsDebugPanel"/> 挂在同一个物体上。
+    /// 宽屏时画在统计面板右侧，窄屏时画在它下面。只做观察和政府买卖。设岗、设薪、建设仍属于 P0-7。
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class MarketDebugPanel : MonoBehaviour
@@ -33,8 +33,13 @@ namespace SocialEvolution.Bootstrap
         private void OnGUI()
         {
             EnsureStyles();
-            GUI.DrawTexture(new Rect(8f, 8f, 640f, Screen.height - 16f), _background!);
-            GUILayout.BeginArea(new Rect(20f, 16f, 616f, Screen.height - 32f));
+            float x;
+            float y;
+            float width;
+            float height;
+            Place(out x, out y, out width, out height);
+            GUI.DrawTexture(new Rect(x, y, width, height), _background!);
+            GUILayout.BeginArea(new Rect(x + 12f, y + 8f, width - 24f, height - 16f));
             _scroll = GUILayout.BeginScrollView(_scroll);
 
             GameSession? session = _driver != null ? _driver.Session : null;
@@ -107,7 +112,11 @@ namespace SocialEvolution.Bootstrap
                 }
             }
 
-            GUILayout.Label("每游戏时：农场出食物和木材，工厂耗木材出工具，超出储备的产出卖进集市，然后结算中间价。", _label);
+            GUILayout.Label(
+                market.ScalesWithStaffing
+                    ? "每游戏时：按到岗人数 / 编制缩放产量，向下取整。没人上班就不产。有产出则卖掉超出储备的部分，然后结算中间价。"
+                    : "每游戏时：农场出食物和木材，工厂耗木材出工具，超出储备的产出卖进集市，然后结算中间价。",
+                _label);
             GUILayout.EndScrollView();
             GUILayout.EndArea();
         }
@@ -168,6 +177,27 @@ namespace SocialEvolution.Bootstrap
                 + "，成交价 " + result.UnitPrice
                 + "，中间价 " + before + " → " + after
                 + "，金库 " + treasuryBefore + " → " + market.World.Treasury.Balance;
+        }
+
+        private static void Place(out float x, out float y, out float width, out float height)
+        {
+            width = 620f;
+            if (Screen.width >= 1100f)
+            {
+                x = 460f;
+                y = 8f;
+                height = Screen.height - 16f;
+                if (height < 240f)
+                {
+                    height = 240f;
+                }
+
+                return;
+            }
+
+            x = 8f;
+            y = 576f;
+            height = 640f;
         }
 
         private static int Sum(WorldState world, BuildingKind kind, Good good)

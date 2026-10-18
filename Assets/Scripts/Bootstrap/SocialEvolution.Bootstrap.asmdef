@@ -5,7 +5,10 @@
     "SocialEvolution.Core",
     "SocialEvolution.Domain",
     "SocialEvolution.World",
-    "SocialEvolution.Economy"
+    "SocialEvolution.Economy",
+    "SocialEvolution.Labor",
+    "SocialEvolution.Agents",
+    "SocialEvolution.Stats"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],
