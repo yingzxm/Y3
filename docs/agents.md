@@ -10,11 +10,11 @@
 
 同一小时里，驱动先执行辞职。如果这一小时有人辞职，还没入职的人会再决策一次，这样可以申请刚空出来的岗位。已经在职、而且这次不辞职的人，沿用第一次的决策。每个人这一小时仍然只执行一个行动。
 
-`GameSession.CreateNew()` 只挂 `SimNoOp`。不注册驱动时，播放场景仍然只走时钟，不会应聘、进食或改空缺。
+`GameSession.CreateNew()` 挂 `SimNoOp` 和 `CityMarket.OnGameHour`。不注册 `AgentsHourDriver` 时，时钟会生产和结算中间价，但不会应聘、进食或改空缺。市民财富仍是只读档案，购物不扣 `Citizen.Wealth`。
 
 ## Bootstrap / SimulationDriver 怎么注册
 
-P0-9 再做暂停、倍速和统计面板。现在只要在创建会话之后挂上小时驱动。`SimulationDriver` 还没有引用 Agents；接入时给 `SocialEvolution.Bootstrap` 加上对 `SocialEvolution.Labor` 和 `SocialEvolution.Agents` 的 asmdef 引用，并让 `ArchitectureGuardTests` 里 Bootstrap 的引用列表和 asmdef 一致。
+场景里的 `StatsDebugPanel.Start` 已经会 `DemoReadout.Attach`：登记白班、为每位市民建 `AgentBrain`，再 `Register` 到时钟，并 `BindLabor`。`SimulationDriver.Update` 只调用 `AdvanceRealtime`。下面是不经过面板时的同一套注册。Bootstrap 的 asmdef 已经引用 Labor、Agents、Stats 和 Economy。
 
 ```csharp
 GameSession session = GameSession.CreateNew();

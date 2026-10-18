@@ -2,7 +2,7 @@
 
 引擎：Unity 6.3 LTS **6000.3.26f1**（changeset `de8167e7440c`）。全员用 Hub 安装这一 patch。
 
-程序集：`SocialEvolution.Core`、`SocialEvolution.Domain`、`SocialEvolution.World`、`SocialEvolution.Labor`、`SocialEvolution.Agents` 不引用 Unity。`SocialEvolution.Bootstrap` 引用 Core、Domain、World；`MonoBehaviour` 只出现在 `SimulationDriver`。Agents 另引用 Labor。
+程序集：`SocialEvolution.Core`、`SocialEvolution.Domain`、`SocialEvolution.World`、`SocialEvolution.Economy`、`SocialEvolution.Labor`、`SocialEvolution.Agents`、`SocialEvolution.Stats` 不引用 Unity。`SocialEvolution.Bootstrap` 引用这些程序集。`MonoBehaviour` 只出现在 `Bootstrap/Unity`（`SimulationDriver`、`StatsDebugPanel`、`MarketDebugPanel`）。Economy 引用 Domain、World、Core，不引用 Labor 或 Agents。Agents 另引用 Labor。Stats 不引用 Economy，中间价由调用方填进 `IMidPriceSource`。
 
 ## 时间
 
@@ -56,7 +56,7 @@ public static class TimeScales
 
 `TimeService` 的默认 `SecondsPerGameHour` 是 1，`MaxHoursPerAdvance` 默认 24。`AdvanceRealtime` 看暂停和倍率，单次最多推进 `MaxHoursPerAdvance` 个游戏时，超出的积压直接丢掉。`StepHours` 按游戏时直接走，不受这个上限、暂停和倍率影响。进入新的一小时时调用小时回调；从 23 时进入下一日 0 时，先小时回调，再日回调。同一委托重复注册只留一份。回调内再次推进会抛 `InvalidOperationException`。
 
-`GameSession.CreateNew()` 会注册 `SimNoOp.OnGameHour` 和 `SimNoOp.OnGameDay`。这两个方法是空的。
+`GameSession.CreateNew()` 会注册 `SimNoOp.OnGameHour`、`CityMarket.OnGameHour` 和 `SimNoOp.OnGameDay`。`SimNoOp` 仍是空的。市场小时钩子会生产并结算中间价。招聘和市民决策不会因此自动发生。
 
 ```csharp
 public sealed class SimulationDriver : MonoBehaviour
@@ -408,7 +408,7 @@ public sealed class CitizenActionLog
 
 ## 统计与点选
 
-程序集 `SocialEvolution.Stats`（`noEngineReferences: true`，C# 9），引用 Core、Domain、World、Labor、Agents。不引用 Unity，也不引用 Bootstrap。中间价对齐 Economy 的 `ICityMarket.GetState(good).MidPrice`（`GoodMarketState.MidPrice`，`long`）。当前 main 还没有 Economy 程序集，所以价格从 `IMidPriceSource` 读入。演示锚定价是食物 10、木材 8、工具 40。市场接入后每个游戏时：
+程序集 `SocialEvolution.Stats`（`noEngineReferences: true`，C# 9），引用 Core、Domain、World、Labor、Agents。不引用 Unity，也不引用 Economy 或 Bootstrap。中间价对齐 Economy 的 `ICityMarket.GetState(good).MidPrice`（`GoodMarketState.MidPrice`，`long`）。价格从 `IMidPriceSource` 读入。演示锚定价是食物 10、木材 8、工具 40。场景面板每个游戏时：
 
 ```csharp
 readout.UseLivePrices(() => new GoodMidPrices(
@@ -419,7 +419,7 @@ readout.UseLivePrices(() => new GoodMidPrices(
 
 就业率 = 在职人数 / 人口。平均时薪是在职市民 `WagePerHour` 的算术平均，没有在职时为 0。贫富指标是财富的基尼系数，范围 [0, 1]；财富有负数时先平移到最小值为 0。现金是 `Citizen.Wealth`。最急需求看 `AgentNeeds` 的紧急度，并列时饥饿、疲劳、财富、安全靠前的胜出；紧急度全是 0 则没有最急需求。
 
-`DemoReadout.Attach` 给每个编制登记 8 小时白班（不改编制人数），为每位市民建 `AgentBrain`，并把 `AgentsHourDriver` 挂到时钟。`GameSession.CreateNew` 仍然只挂 `SimNoOp`。场景面板见 [stats.md](stats.md)。
+`DemoReadout.Attach` 给每个编制登记 8 小时白班（不改编制人数），为每位市民建 `AgentBrain`，并把 `AgentsHourDriver` 挂到时钟。`GameSession.CreateNew` 不注册这个驱动，但会注册市场小时钩子。`StatsDebugPanel` 在 `Attach` 之后调用 `GameSession.BindLabor`，产量改为按在职/编制缩放。场景面板见 [stats.md](stats.md)。同一小时先跑市场，再跑代理人。
 
 ```csharp
 public interface IMidPriceSource
@@ -559,10 +559,150 @@ public static class OpeningSeed
 public sealed class GameSession
 {
     public GameSession(ITimeService time, WorldState world);
+    public GameSession(ITimeService time, WorldState world, CityMarket? market);
     public ITimeService Time { get; }
     public WorldState World { get; }
+    public CityMarket? Market { get; }
     public static GameSession CreateNew();
+    public void BindLabor(ILaborMarket labor);
 }
 ```
 
 容量是一座建筑里全部商品的件数之和。失败的入出库不改数量，也不部分成交。`Inventory.TryTransfer` 同样整笔成功或双方都不变。
+
+## 市场（P0-6）
+
+程序集 `SocialEvolution.Economy`（`noEngineReferences: true`，C# 9）。引用 Domain、World、Core，不引用 Unity，也不引用 Labor、Agents、Stats。定价和生产不放进 World：World 只保管库存；市场要直接拿 `GameDateTime` 去挂小时钩子。到岗比例由 Bootstrap 的 `LaborOutputScale` 算好再交进来。
+
+货币是 `long`。商品仍是 `Food`、`Wood`、`Tool`。没有私企，没有点名派工。金库可以为负，不结束游戏。政府买卖是正式入口。建设、设岗和财政面板仍属于 P0-7。`Citizen.Wealth` 仍是只读档案，购物不改它。
+
+```csharp
+public interface ICashLedger
+{
+    long Balance { get; }
+    void Credit(long amount);
+    bool TryDebit(long amount);
+}
+
+public sealed class CashLedger : ICashLedger
+{
+    public CashLedger(long balance, bool allowNegative = false);
+}
+
+public sealed class TreasuryLedger : ICashLedger
+{
+    public TreasuryLedger(Treasury treasury);
+    public bool TryDebit(long amount); // 始终成功，金库可为负
+}
+
+public enum MarketRejection
+{
+    None = 0,
+    InvalidQuantity = 1,
+    UnknownGood = 2,
+    InsufficientCash = 3,
+    InsufficientStock = 4,
+    ExceedsCapacity = 5,
+    NoGovernment = 6,
+    NoMarket = 7,
+}
+
+public readonly struct MarketResult
+{
+    public bool Succeeded { get; }
+    public MarketRejection Rejection { get; }
+    public Good Good { get; }
+    public int Quantity { get; }
+    public long UnitPrice { get; }
+    public long CashMoved { get; }
+}
+
+public sealed class GoodMarketState
+{
+    public Good Good { get; }
+    public long MidPrice { get; }
+    public long AnchorPrice { get; }
+    public long FloorPrice { get; }
+    public long CeilingPrice { get; }
+    public int TargetStock { get; }
+    public long InventoryPressure { get; }
+    public int RecentVolume { get; }
+    public long LastTradePrice { get; }
+}
+
+public interface IGovernmentMarketOps
+{
+    MarketResult TryGovernmentBuy(Good good, int quantity);
+    MarketResult TryGovernmentSell(Good good, int quantity);
+}
+
+public interface ICityMarket : IGovernmentMarketOps
+{
+    IReadOnlyList<GoodMarketState> Goods { get; }
+    long ClearingCash { get; }
+    GoodMarketState GetState(Good good);
+    MarketResult TryBuy(ICashLedger payer, IInventory destination, Good good, int quantity);
+    MarketResult TrySell(ICashLedger payee, IInventory source, Good good, int quantity);
+    void RunProduction();
+    void SettlePrices();
+    void OnGameHour(GameDateTime now);
+}
+
+public sealed class CityMarket : ICityMarket
+{
+    public const long InitialClearingCash = 2000000L;
+    public const int MaxTradePriceStep = 5;
+    public const int DriftStep = 1;
+    public const int FarmFoodReserve = 100;
+    public const long FoodMidPrice = 10L;
+    public const long WoodMidPrice = 8L;
+    public const long ToolMidPrice = 40L;
+    public CityMarket(WorldState world);
+    public WorldState World { get; }
+    public GameDateTime LastSettled { get; }
+    public bool ScalesWithStaffing { get; }
+    public void BindOutputScale(Func<BuildingId, float>? scale);
+}
+
+public static class StateProduction
+{
+    public const int FarmFoodPerHour = 4;
+    public const int FarmWoodPerHour = 1;
+    public const int FactoryWoodInput = 1;
+    public const int FactoryToolOutput = 1;
+    public static void Run(WorldState world);
+    public static void Run(WorldState world, Func<BuildingId, float>? outputScale);
+    public static bool TryConvert(IInventory inventory, Good input, int inputQuantity, Good output, int outputQuantity);
+}
+
+public static class LaborOutputScale
+{
+    public static float ForBuilding(ILaborMarket labor, WorldState world, BuildingId buildingId);
+}
+```
+
+开局中间价：食物 10（下限 1，上限 100，目标库存 200），木材 8（1–80，目标 80），工具 40（2–400，目标 40）。
+
+买卖按当前中间价加减步长成交。步长是 `min(数量, MaxTradePriceStep)`，至少为 1。买入抬价，卖出压价，然后把 `MidPrice` 设成这笔成交价。现金和库存整笔成功或整笔不变。买方现金不够就拒绝；金库账户不拒绝，余额可以为负。集市建筑的库存是可买供给。清算账户起始 `InitialClearingCash`，允许为负，它不是金库。
+
+每游戏时结算一次。这一小时有成交：`MidPrice` 保持最近成交价。没有成交：向库存压力价移动最多 `DriftStep`（1）。压力价是 `clamp(锚定价 * 目标库存 / max(集市库存, 1), 下限, 上限)`。集市库存高则向下，低则向上。
+
+不绑定劳动力时，农场每小时产出 4 食物和 1 木材，工厂每小时消耗 1 木材、产出 1 工具。出库失败或入库失败则这一步不产，输入会退回。`BindLabor` / `BindOutputScale` 之后，产量按该建筑已登记岗位的在职人数 / 编制之和缩放并向下取整。没招到人则这一小时不产。没有已登记岗位的建筑仍按满产。
+
+`GameSession.CreateNew()` 在小时钩子上注册 `market.OnGameHour`。回调顺序：生产 → 农场把超出 100 的食物以及木材、工厂把工具用 `TrySell` 卖进集市 → `SettlePrices`。`SimulationDriver.Awake` 调用 `CreateNew()`。`StatsDebugPanel.Start` 再注册代理人并 `BindLabor`。政府厅库存不会被这个钩子自动卖掉。
+
+### Play 验证
+
+1. 用 Unity Hub 打开本仓库根目录，版本 **6000.3.26f1**。
+2. 打开 `Assets/Scenes/Bootstrap.unity`。物体 `Simulation` 上有 `SimulationDriver`、`StatsDebugPanel` 和 `MarketDebugPanel`。
+3. 点 Play。左侧是统计和市民点选，宽屏时右侧是市场面板（窄屏时市场面板在统计下面）：日/时、暂停、1x、5x、金库、三种中间价、集市/政府/农场/工厂库存。
+4. 点「暂停 Pause」。数量填 `10`，点食物「卖出 Sell」。中间价下降，集市食物增加，政府食物减少，金库增加。状态行写 `中间价 a → b`。
+5. 点食物「买入 Buy」。中间价上升。金库可以买成负数，游戏不结束。
+6. 数量 `0`，或集市没货时买入：失败，库存、金库和中间价都不变。
+7. 「继续 Resume」再点 5x。统计面板已经绑定劳动力，没人上班的小时不生产，空集市会把中间价向压力价移动 1。有人入职后的下一小时按到岗比例生产，超出储备的产出卖进集市。
+
+不打开 Unity 时：
+
+```bash
+dotnet test tests/SocialEvolution.Tests/SocialEvolution.Tests.csproj
+```
